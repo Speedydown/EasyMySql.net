@@ -1,4 +1,5 @@
-﻿using System;
+﻿using EasyMySql.Attributes;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -8,18 +9,27 @@ namespace EasyMySql.Core
 {
     public sealed class EasyMySqlException : DataObject
     {
+        [StringLength(VarcharLength = 125)]
         public string DatahandlerName { get; private set; }
+        [StringLength(VarcharLength = 250)]
         public string TheException { get; private set; }
         public DateTime TimeStamp { get; internal set; }
+        [StringLength(VarcharLength = 350)]
         public string ExceptionHash { get; private set; }
+
+        public EasyMySqlException()
+        {
+
+        }
 
         public EasyMySqlException(object Datahandler, Exception e) : this(0, Datahandler.ToString(), e.Message, TimeConverter.GetDateTime(), Encrypt.EncryptPassword(e.ToString()))
         {
             EasyMySqlLog.Log(Datahandler, "Exception occurred:\n" + e.ToString(), logSeverity.Error);
         }
 
-        public EasyMySqlException(int ID, string DatahandlerName, string TheException, DateTime TimeStamp, string ExceptionHash) : base(ID)
+        public EasyMySqlException(int ID, string DatahandlerName, string TheException, DateTime TimeStamp, string ExceptionHash)
         {
+            this.ID = ID;
             this.DatahandlerName = DatahandlerName;
             this.TheException = TheException.Replace('<', '[').Replace('>',']');
             this.TimeStamp = TimeStamp;

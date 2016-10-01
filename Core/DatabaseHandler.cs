@@ -8,6 +8,7 @@ using System.Configuration;
 using System.Threading;
 using EasyMySql.Performance;
 using EasyMySql.Stats;
+using EasyMySql.Config;
 
 namespace EasyMySql.Core
 {

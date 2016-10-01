@@ -1,4 +1,5 @@
-﻿using System;
+﻿using EasyMySql.Attributes;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -10,16 +11,12 @@ namespace EasyMySql.Core
 {
     public abstract class DataObject
     {
-        public int ID { get; protected set; }
+        [PrimaryKey]
+        public int ID { get; set; }
 
-        public DataObject(int ID)
+        public DataObject()
         {
-            this.ID = ID;
-        }
-
-        internal void setID(int ID)
-        {
-            this.ID = ID;
+            
         }
 
         internal void TrimValues()
@@ -44,7 +41,7 @@ namespace EasyMySql.Core
 
         public override string ToString()
         {
-            return this.GetType().Name;
+            return GetType().Name;
         }
     }
 }

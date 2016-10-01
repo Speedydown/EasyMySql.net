@@ -1,4 +1,5 @@
-﻿using EasyMySql.Performance;
+﻿using EasyMySql.Attributes;
+using EasyMySql.Performance;
 using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
@@ -9,30 +10,25 @@ namespace EasyMySql.Core
 {
     public enum OrderBy { ASC, DESC }
 
-    public abstract class DataHandler<T> where T : DataObject
+    public class DataHandler<T> where T : DataObject, new()
     {
-        protected static readonly Field IDField = new Field("ID", typeof(int), 1, true);
-
-        protected bool RegisterError { get; set; }
+        protected bool LogErrors { get; set; }
         protected bool LogDatabaseStats { get; set; }
         protected T DefaultDataObject { get; set; }
-        public string tableName { get; private set; }
-        protected Field[] fields { get; set; }
+        public string tableName { get; protected set; }
+        private DataObjectPropertyInfo[] PropertyInfo { get; set; }
         protected Type objectType { get; set; }
 
-        protected DataHandler(string tableName, Field[] fields)
+        public DataHandler()
         {
-            this.tableName = tableName;
-            List<Field> fieldsList = fields.ToList();
-            fieldsList.Insert(0, IDField);
-            this.fields = fieldsList.ToArray();
             objectType = typeof(T);
+            tableName = objectType.Name;
+            PropertyInfo = GetPropertyInfo();
         }
 
         private T[] GetDataObjects(MySqlDataReader Reader)
         {
-            List<T> ObjectList = new List<T>();
-            List<object> Parameters = new List<object>();
+            List<T> CurrentObjects = new List<T>();
 
             if (Reader.HasRows)
             {
@@ -40,49 +36,33 @@ namespace EasyMySql.Core
                 {
                     while (Reader.Read())
                     {
-                        Parameters = new List<object>();
+                        T CurrentObject = new T();
 
-                        foreach (Field f in fields)
+                        foreach (DataObjectPropertyInfo pi in PropertyInfo)
                         {
-                            if (f.FieldType == typeof(int))
+                            if (pi.Type == typeof(bool))
                             {
-                                Parameters.Add(Convert.ToInt32(Reader[f.FieldName]));
-                                continue;
+                                objectType.GetProperty(pi.Name).SetValue(CurrentObject, Convert.ToBoolean(Reader[pi.Name]), null);
+                            }
+                            else if (pi.Type == typeof(DateTime))
+                            {
+                                objectType.GetProperty(pi.Name).SetValue(CurrentObject, new DateTime((long)Reader[pi.Name]), null);
+                            }
+                            else
+                            {
+                                objectType.GetProperty(pi.Name).SetValue(CurrentObject, Reader[pi.Name], null);
                             }
 
-                            if (f.FieldType == typeof(string))
-                            {
-                                Parameters.Add(Convert.ToString(Reader[f.FieldName]));
-                                continue;
-                            }
-
-                            if (f.FieldType == typeof(bool))
-                            {
-                                Parameters.Add(Convert.ToBoolean(Reader[f.FieldName]));
-                                continue;
-                            }
-
-                            if (f.FieldType == typeof(DateTime))
-                            {
-                                Parameters.Add(new DateTime((long)Reader[f.FieldName]));
-                                continue;
-                            }
-
-                            if (f.FieldType == typeof(double))
-                            {
-                                Parameters.Add(Convert.ToDouble(Reader[f.FieldName]));
-                                continue;
-                            }
                         }
 
                         try
                         {
-                            ObjectList.Add((T)Activator.CreateInstance(objectType, Parameters.ToArray()));
+                            CurrentObjects.Add(CurrentObject);
                         }
                         catch (TargetInvocationException)
                         {
-                            //Object is corrupt
-                            Console.WriteLine(Parameters[0] + " is corrupt!");
+                            EasyMySqlLog.Log(this, "Could not get dataobjects from table: " + tableName, logSeverity.Error);
+
                         }
                     }
                 }
@@ -99,28 +79,82 @@ namespace EasyMySql.Core
 
             DatabaseHandler.CloseConnectionByReader(Reader);
 
-            return ObjectList.ToArray();
+            return CurrentObjects.ToArray();
+        }
+
+        private DataObjectPropertyInfo[] GetPropertyInfo()
+        {
+            List<DataObjectPropertyInfo> PropertyInfoList = new List<DataObjectPropertyInfo>();
+
+            try
+            {
+                foreach (PropertyInfo pi in objectType.GetProperties())
+                {
+                    bool IsPrimaryKey = false;
+                    bool HasIgnoreAttribute = false;
+                    int StringLength = 250;
+
+                    foreach (object attribute in pi.GetCustomAttributes(true))
+                    {
+                        if (attribute is IgnorePropertyAttribute)
+                        {
+                            HasIgnoreAttribute = true;
+                            break;
+                        }
+
+                        if (attribute is PrimaryKeyAttribute)
+                        {
+                            IsPrimaryKey = true;
+                        }
+
+                        if (pi.PropertyType == typeof(string) && attribute is StringLengthAttribute)
+                        {
+                            StringLength = (attribute as StringLengthAttribute).VarcharLength;
+                        }
+                    }
+
+                    if (HasIgnoreAttribute)
+                    {
+                        continue;
+                    }
+
+                    PropertyInfoList.Add(new DataObjectPropertyInfo()
+                    {
+                        Name = pi.Name,
+                        Type = pi.PropertyType,
+                        Length = pi.PropertyType.Equals(typeof(string)) ? StringLength : 1,
+                        IsPrimaryKey = IsPrimaryKey,
+                    });
+                }
+            }
+            catch (Exception e)
+            {
+                EasyMySqlLog.Log(this, e.Message, logSeverity.Critical);
+            }
+
+            return PropertyInfoList.ToArray();
         }
 
         private bool CreateTable()
         {
             try
             {
-                Field PrimaryKey = null;
+                DataObjectPropertyInfo PrimaryKey = null;
 
                 MySqlCommand Command = new MySqlCommand();
                 Command.CommandText = "CREATE TABLE IF NOT EXISTS " + tableName + " ( ";
-                foreach (Field f in fields)
-                {
-                    if (f.FieldType == typeof(int))
-                    {
-                        Command.CommandText += " " + f.FieldName + " INT NOT NULL " + (f.Key ? " AUTO_INCREMENT" : "") + " ,";
 
-                        if (f.Key)
+                foreach (DataObjectPropertyInfo pi in PropertyInfo)
+                {
+                    if (pi.Type == typeof(int))
+                    {
+                        Command.CommandText += " " + pi.Name + " INT NOT NULL " + (pi.IsPrimaryKey ? " AUTO_INCREMENT" : "") + " ,";
+
+                        if (pi.IsPrimaryKey)
                         {
                             if (PrimaryKey == null)
                             {
-                                PrimaryKey = f;
+                                PrimaryKey = pi;
                             }
                             else
                             {
@@ -128,32 +162,28 @@ namespace EasyMySql.Core
                             }
                         }
                     }
-
-                    if (f.FieldType == typeof(string))
+                    else if (pi.Type == typeof(string))
                     {
-                        Command.CommandText += " " + f.FieldName + " VARCHAR(" + f.Size + ") NOT NULL ,";
+                        Command.CommandText += " " + pi.Name + " VARCHAR(" + pi.Length + ") NOT NULL ,";
                     }
-
-                    if (f.FieldType == typeof(bool))
+                    else if (pi.Type == typeof(bool))
                     {
-                        Command.CommandText += " " + f.FieldName + " BIT NOT NULL ,";
+                        Command.CommandText += " " + pi.Name + " BIT NOT NULL ,";
                     }
-
-                    if (f.FieldType == typeof(DateTime))
+                    else if (pi.Type == typeof(DateTime))
                     {
-                        Command.CommandText += " " + f.FieldName + " BIGINT NOT NULL ,";
+                        Command.CommandText += " " + pi.Name + " BIGINT NOT NULL ,";
                     }
-
-                    if (f.FieldType == typeof(Double))
+                    else if (pi.Type == typeof(double))
                     {
-                        Command.CommandText += " " + f.FieldName + " FLOAT NOT NULL ,";
+                        Command.CommandText += " " + pi.Name + " FLOAT NOT NULL ,";
                     }
                 }
 
                 if (PrimaryKey != null)
                 {
-                    Command.CommandText += "PRIMARY KEY (" + PrimaryKey.FieldName + "), " +
-                        "UNIQUE KEY ID_UNIQUE (" + PrimaryKey.FieldName + ") );";
+                    Command.CommandText += "PRIMARY KEY (" + PrimaryKey.Name + "), " +
+                        "UNIQUE KEY ID_UNIQUE (" + PrimaryKey.Name + ") );";
                 }
                 else
                 {
@@ -161,11 +191,11 @@ namespace EasyMySql.Core
                     Command.CommandText += " );";
                 }
 
-                DatabaseHandler.ExecuteNonQuery(Command, this.LogDatabaseStats);
+                DatabaseHandler.ExecuteNonQuery(Command, LogDatabaseStats);
 
-                if (this.DefaultDataObject != null)
+                if (DefaultDataObject != null)
                 {
-                    this.AddObject(this.DefaultDataObject);
+                    AddObject(DefaultDataObject);
                 }
 
                 return true;
@@ -184,22 +214,22 @@ namespace EasyMySql.Core
 
         private bool RestructureTable()
         {
-            Field PrimaryKey = null;
+            DataObjectPropertyInfo PrimaryKey = null;
 
-            foreach (Field f in this.fields)
+            foreach (DataObjectPropertyInfo pi in PropertyInfo)
             {
                 try
                 {
                     MySqlCommand Command = new MySqlCommand();
-                    if (f.FieldType == typeof(int))
+                    if (pi.Type == typeof(int))
                     {
-                        Command.CommandText = "ALTER TABLE " + tableName + " ADD COLUMN " + f.FieldName + " INT NOT NULL " + (f.Key ? " AUTO_INCREMENT" : "");
+                        Command.CommandText = "ALTER TABLE " + tableName + " ADD COLUMN " + pi.Name + " INT NOT NULL " + (pi.IsPrimaryKey ? " AUTO_INCREMENT" : "");
 
-                        if (f.Key)
+                        if (pi.IsPrimaryKey)
                         {
                             if (PrimaryKey == null)
                             {
-                                PrimaryKey = f;
+                                PrimaryKey = pi;
                             }
                             else
                             {
@@ -208,24 +238,24 @@ namespace EasyMySql.Core
                         }
                     }
 
-                    if (f.FieldType == typeof(string))
+                    if (pi.Type == typeof(string))
                     {
-                        Command.CommandText = "ALTER TABLE " + tableName + " ADD COLUMN " + f.FieldName + " VARCHAR(" + f.Size + ") NOT NULL ";
+                        Command.CommandText = "ALTER TABLE " + tableName + " ADD COLUMN " + pi.Name + " VARCHAR(" + pi.Length + ") NOT NULL ";
                     }
 
-                    if (f.FieldType == typeof(bool))
+                    if (pi.Type == typeof(bool))
                     {
-                        Command.CommandText = "ALTER TABLE " + tableName + " ADD COLUMN " + f.FieldName + " BIT NOT NULL ";
+                        Command.CommandText = "ALTER TABLE " + tableName + " ADD COLUMN " + pi.Name + " BIT NOT NULL ";
                     }
 
-                    if (f.FieldType == typeof(DateTime))
+                    if (pi.Type == typeof(DateTime))
                     {
-                        Command.CommandText = "ALTER TABLE " + tableName + " ADD COLUMN " + f.FieldName + " BIGINT NOT NULL ";
+                        Command.CommandText = "ALTER TABLE " + tableName + " ADD COLUMN " + pi.Name + " BIGINT NOT NULL ";
                     }
 
-                    if (f.FieldType == typeof(double))
+                    if (pi.Type == typeof(double))
                     {
-                        Command.CommandText = "ALTER TABLE " + tableName + " ADD COLUMN " + f.FieldName + " FLOAT NOT NULL ";
+                        Command.CommandText = "ALTER TABLE " + tableName + " ADD COLUMN " + pi.Name + " FLOAT NOT NULL ";
                     }
 
                     DatabaseHandler.ExecuteNonQuery(Command, this.LogDatabaseStats);
@@ -237,17 +267,17 @@ namespace EasyMySql.Core
                         try
                         {
                             MySqlCommand Command = new MySqlCommand();
-                            if (f.FieldType == typeof(int))
+                            if (pi.Type == typeof(int))
                             {
-                                Command.CommandText = "ALTER TABLE " + tableName + " CHANGE COLUMN " + f.FieldName + " " + f.FieldName + " INT NOT NULL " + (f.Key ? " AUTO_INCREMENT" : "");
+                                Command.CommandText = "ALTER TABLE " + tableName + " CHANGE COLUMN " + pi.Name + " " + pi.Name + " INT NOT NULL " + (pi.IsPrimaryKey ? " AUTO_INCREMENT" : "");
 
-                                if (f.Key && PrimaryKey == null)
+                                if (pi.IsPrimaryKey && PrimaryKey == null)
                                 {
-                                    PrimaryKey = f;
+                                    PrimaryKey = pi;
                                 }
                                 else
                                 {
-                                    if (PrimaryKey != f && f.Key)
+                                    if (PrimaryKey != pi && pi.IsPrimaryKey)
                                     {
                                         throw new Exception("Instance has 2 primary keys");
                                     }
@@ -255,27 +285,27 @@ namespace EasyMySql.Core
 
                             }
 
-                            if (f.FieldType == typeof(string))
+                            if (pi.Type == typeof(string))
                             {
-                                Command.CommandText = "ALTER TABLE " + tableName + " CHANGE COLUMN " + f.FieldName + " " + f.FieldName + " VARCHAR(" + f.Size + ") NOT NULL ";
+                                Command.CommandText = "ALTER TABLE " + tableName + " CHANGE COLUMN " + pi.Name + " " + pi.Name + " VARCHAR(" + pi.Length + ") NOT NULL ";
                             }
 
-                            if (f.FieldType == typeof(bool))
+                            if (pi.Type == typeof(bool))
                             {
-                                Command.CommandText = "ALTER TABLE " + tableName + " CHANGE COLUMN " + f.FieldName + " " + f.FieldName + " BIT NOT NULL ";
+                                Command.CommandText = "ALTER TABLE " + tableName + " CHANGE COLUMN " + pi.Name + " " + pi.Name + " BIT NOT NULL ";
                             }
 
-                            if (f.FieldType == typeof(DateTime))
+                            if (pi.Type == typeof(DateTime))
                             {
-                                Command.CommandText = "ALTER TABLE " + tableName + " CHANGE COLUMN " + f.FieldName + " " + f.FieldName + " BIGINT NOT NULL ";
+                                Command.CommandText = "ALTER TABLE " + tableName + " CHANGE COLUMN " + pi.Name + " " + pi.Name + " BIGINT NOT NULL ";
                             }
 
-                            if (f.FieldType == typeof(Double))
+                            if (pi.Type == typeof(double))
                             {
-                                Command.CommandText = "ALTER TABLE " + tableName + " CHANGE COLUMN " + f.FieldName + " " + f.FieldName + " FLOAT NOT NULL ";
+                                Command.CommandText = "ALTER TABLE " + tableName + " CHANGE COLUMN " + pi.Name + " " + pi.Name + " FLOAT NOT NULL ";
                             }
 
-                            DatabaseHandler.ExecuteNonQuery(Command, this.LogDatabaseStats);
+                            DatabaseHandler.ExecuteNonQuery(Command, LogDatabaseStats);
                         }
                         catch (Exception)
                         {
@@ -298,8 +328,8 @@ namespace EasyMySql.Core
                 try
                 {
                     MySqlCommand Command = new MySqlCommand();
-                    Command.CommandText = "alter TABLE " + this.tableName + " ADD PRIMARY KEY (`" + PrimaryKey.FieldName + "`);";
-                    DatabaseHandler.ExecuteNonQuery(Command, this.LogDatabaseStats);
+                    Command.CommandText = "alter TABLE " + tableName + " ADD PRIMARY KEY (`" + PrimaryKey.Name + "`);";
+                    DatabaseHandler.ExecuteNonQuery(Command, LogDatabaseStats);
                 }
                 catch (Exception ex)
                 {
@@ -308,7 +338,7 @@ namespace EasyMySql.Core
                         return true;
                     }
 
-                    if (this.RegisterError)
+                    if (LogErrors)
                     {
                         new EasyMySqlException(this, ex);
                     }
@@ -328,59 +358,60 @@ namespace EasyMySql.Core
             {
                 MySqlCommand Command = new MySqlCommand();
                 Command.CommandText = "INSERT INTO " + tableName + " ( ";
-                foreach (Field f in fields)
+
+                foreach (DataObjectPropertyInfo pi in PropertyInfo)
                 {
-                    if (f.FieldName != "ID")
+                    if (pi.Name != "ID")
                     {
-                        Command.CommandText += f.FieldName + ", ";
+                        Command.CommandText += pi.Name + ", ";
                     }
                 }
 
                 Command.CommandText = Command.CommandText.Substring(0, Command.CommandText.Length - 2);
                 Command.CommandText += ") VALUES ( ";
 
-                foreach (Field f in fields)
+                foreach (DataObjectPropertyInfo pi in PropertyInfo)
                 {
-                    if (f.FieldName != "ID")
+                    if (pi.Name != "ID")
                     {
-                        Command.CommandText += " @" + f.FieldName + ", ";
+                        Command.CommandText += " @" + pi.Name + ", ";
                     }
                 }
 
                 Command.CommandText = Command.CommandText.Substring(0, Command.CommandText.Length - 2);
                 Command.CommandText += " )";
 
-                for (int i = 0; i < fields.Count(); i++)
+                for (int i = 0; i < PropertyInfo.Count(); i++)
                 {
-                    if (fields[i].FieldName != "ID")
+                    if (PropertyInfo[i].Name != "ID")
                     {
-                        if (fields[i].FieldType != typeof(DateTime))
+                        if (PropertyInfo[i].Type != typeof(DateTime))
                         {
-                            object FieldValue = DataObject.GetType().GetProperty(fields[i].FieldName).GetValue(DataObject, null);
+                            object FieldValue = DataObject.GetType().GetProperty(PropertyInfo[i].Name).GetValue(DataObject, null);
 
-                            Command.Parameters.AddWithValue("@" + fields[i].FieldName, FieldValue);
+                            Command.Parameters.AddWithValue("@" + PropertyInfo[i].Name, FieldValue);
 
-                            if (fields[i].FieldType == typeof(string) && FieldValue.ToString().Length > fields[i].Size)
+                            if (PropertyInfo[i].Type == typeof(string) && FieldValue.ToString().Length > PropertyInfo[i].Length)
                             {
-                                EasyMySqlLog.Log(this, "Field " + fields[i].FieldName + " has exceeded its size, Consider increasing its fieldsize. Do not forgot to restruct the table later.", logSeverity.Warning);
+                                EasyMySqlLog.Log(this, "Field " + PropertyInfo[i].Name + " has exceeded its size, Consider increasing its fieldsize. Do not forgot to force a restruct later.", logSeverity.Warning);
                             }
                         }
                         else
                         {
-                            DateTime dt = (DateTime)DataObject.GetType().GetProperty(fields[i].FieldName).GetValue(DataObject, null);
-                            Command.Parameters.AddWithValue("@" + fields[i].FieldName, dt.Ticks);
+                            DateTime dt = (DateTime)DataObject.GetType().GetProperty(PropertyInfo[i].Name).GetValue(DataObject, null);
+                            Command.Parameters.AddWithValue("@" + PropertyInfo[i].Name, dt.Ticks);
                         }
                     }
                 }
 
                 DatabaseHandler.ExecuteNonQuery(Command, LogDatabaseStats);
 
-                if (RegisterError)
+                if (LogErrors)
                 {
                     EasyMySqlLog.Log(this, DataObject.ToString() + " with id " + Command.LastInsertedId + " has been added.", logSeverity.Info);
                 }
 
-                DataObject.setID(Convert.ToInt32(Command.LastInsertedId));
+                DataObject.ID = (Convert.ToInt32(Command.LastInsertedId));
                 CacheHandler.ClearData(ToString());
                 return DataObject;
             }
@@ -406,7 +437,7 @@ namespace EasyMySql.Core
 
             if (dataObject.ID == 0)
             {
-                throw new Exception("Value 0 is not allowed.");
+                throw new Exception("ID can not be 0. try adding this object first.");
             }
 
             try
@@ -414,26 +445,26 @@ namespace EasyMySql.Core
                 MySqlCommand Command = new MySqlCommand();
                 Command.CommandText = "UPDATE " + tableName + " SET ";
 
-                foreach (Field f in this.fields)
+                foreach (DataObjectPropertyInfo pi in PropertyInfo)
                 {
-                    if (f.FieldName != "ID")
+                    if (pi.Name != "ID")
                     {
-                        Command.CommandText += f.FieldName + " = @" + f.FieldName + ", ";
+                        Command.CommandText += pi.Name + " = @" + pi.Name + ", ";
 
-                        foreach (PropertyInfo pi in props)
+                        foreach (PropertyInfo opi in props)
                         {
-                            if (pi.Name == f.FieldName)
+                            if (opi.Name == pi.Name)
                             {
-                                if (pi.PropertyType == typeof(DateTime))
+                                if (opi.PropertyType == typeof(DateTime))
                                 {
-                                    DateTime dt = (DateTime)pi.GetValue(dataObject, null);
+                                    DateTime dt = (DateTime)opi.GetValue(dataObject, null);
 
-                                    Command.Parameters.AddWithValue("@" + f.FieldName, dt.Ticks);
+                                    Command.Parameters.AddWithValue("@" + pi.Name, dt.Ticks);
                                     break;
                                 }
                                 else
                                 {
-                                    Command.Parameters.AddWithValue("@" + f.FieldName, pi.GetValue(dataObject, null));
+                                    Command.Parameters.AddWithValue("@" + pi.Name, opi.GetValue(dataObject, null));
                                     break;
                                 }
                             }
@@ -448,7 +479,7 @@ namespace EasyMySql.Core
 
                 DatabaseHandler.ExecuteNonQuery(Command, LogDatabaseStats);
 
-                if (RegisterError)
+                if (LogErrors)
                 {
                     EasyMySqlLog.Log(this, dataObject.ToString() + " with id " + dataObject.ID + " has been updated.", logSeverity.Info);
                 }
@@ -474,7 +505,7 @@ namespace EasyMySql.Core
         {
             try
             {
-                T dataObject = (T)CacheHandler.GetData(this.ToString(), "GetObjectByID", new string[] { Convert.ToString(ID) });
+                T dataObject = (T)CacheHandler.GetData(ToString(), "GetObjectByID", new string[] { Convert.ToString(ID) });
 
                 if (dataObject != null)
                 {
@@ -482,15 +513,15 @@ namespace EasyMySql.Core
                 }
 
                 MySqlCommand Command = new MySqlCommand();
-                Command.CommandText = "SELECT * FROM " + this.tableName + " WHERE ID = @ID";
+                Command.CommandText = "SELECT * FROM " + tableName + " WHERE ID = @ID";
                 Command.Parameters.AddWithValue("@ID", ID);
 
-                T[] ObjectList = GetDataObjects(DatabaseHandler.ExecuteQuery(Command, this.LogDatabaseStats));
+                T[] ObjectList = GetDataObjects(DatabaseHandler.ExecuteQuery(Command, LogDatabaseStats));
                 QueryTrace.RemoveQuery(Command.CommandText);
 
                 if (ObjectList.Count() > 0)
                 {
-                    CacheHandler.AddToCache(this.ToString(), "GetObjectByID", new string[] { Convert.ToString(ID) }, ObjectList[0]);
+                    CacheHandler.AddToCache(ToString(), "GetObjectByID", new string[] { Convert.ToString(ID) }, ObjectList[0]);
                     return ObjectList[0];
                 }
                 else
@@ -516,18 +547,18 @@ namespace EasyMySql.Core
             }
         }
 
-        protected virtual T[] GetObjectByFieldsAndSearchQuery(Field SearchField, string SearchQuery, bool Exact = false, int LIMIT = 0, OrderBy orderBy = OrderBy.ASC, Field orderByField = null)
+        protected virtual T[] GetObjectByPropertyValueAndSearchQuery(string PropertyName, string SearchQuery, bool Exact = false, int LIMIT = 0, OrderBy orderBy = OrderBy.ASC, string OrderByPropertyName = null)
         {
-            return GetObjectByFieldsAndSearchQuery(new Field[] { SearchField }, SearchQuery, Exact, LIMIT, orderBy, orderByField);
+            return GetObjectByPropertyValueAndSearchQuery(new string[] { PropertyName }, SearchQuery, Exact, LIMIT, orderBy, OrderByPropertyName);
         }
 
-        protected virtual T[] GetObjectByFieldsAndSearchQuery(Field[] SearchFields, string SearchQuery, bool Exact = false, int LIMIT = 0, OrderBy orderBy = OrderBy.ASC, Field orderByField = null)
+        protected virtual T[] GetObjectByPropertyValueAndSearchQuery(string[] PropertyNames, string SearchQuery, bool Exact = false, int LIMIT = 0, OrderBy orderBy = OrderBy.ASC, string OrderByPropertyName = null)
         {
             List<string> ParameterList = new List<string>();
 
-            foreach (Field f in fields)
+            foreach (string s in PropertyNames)
             {
-                ParameterList.Add(f.FieldName);
+                ParameterList.Add(s);
             }
 
             ParameterList.Add(SearchQuery);
@@ -538,9 +569,9 @@ namespace EasyMySql.Core
 
             try
             {
-                if (orderByField != null)
+                if (OrderByPropertyName != null)
                 {
-                    ParameterList.Add(orderByField.FieldName);
+                    ParameterList.Add(OrderByPropertyName);
                 }
             }
             catch (Exception)
@@ -548,7 +579,7 @@ namespace EasyMySql.Core
 
             }
 
-            T[] dataObjects = (T[])CacheHandler.GetData(this.ToString(), "GetObjectByFieldsAndSearchQuery", ParameterList.ToArray());
+            T[] dataObjects = (T[])CacheHandler.GetData(ToString(), "GetObjectByFieldsAndSearchQuery", ParameterList.ToArray());
 
             if (dataObjects != null)
             {
@@ -570,38 +601,38 @@ namespace EasyMySql.Core
 
             try
             {
-                Command.CommandText = "SELECT * FROM " + this.tableName + " WHERE ";
+                Command.CommandText = "SELECT * FROM " + tableName + " WHERE ";
 
-                foreach (Field f in SearchFields)
+                foreach (string s in PropertyNames)
                 {
-                    Command.CommandText += f.FieldName + " LIKE @QUERY OR ";
+                    Command.CommandText += s + " LIKE @QUERY OR ";
                 }
 
                 Command.Parameters.AddWithValue("@QUERY", SQLQuery);
 
-                if (SearchFields.Count() > 0)
+                if (PropertyNames.Count() > 0)
                 {
                     Command.CommandText = Command.CommandText.Substring(0, Command.CommandText.Length - 3);
                 }
 
-                Command.CommandText = this.addOrderBy(Command.CommandText, orderBy, orderByField);
+                Command.CommandText = addOrderBy(Command.CommandText, orderBy, OrderByPropertyName);
 
                 if (LIMIT > 0)
                 {
-                    Command.CommandText = this.addLimit(Command.CommandText, LIMIT);
+                    Command.CommandText = addLimit(Command.CommandText, LIMIT);
                 }
 
-                T[] dataObjectList = GetDataObjects(DatabaseHandler.ExecuteQuery(Command, this.LogDatabaseStats));
+                T[] dataObjectList = GetDataObjects(DatabaseHandler.ExecuteQuery(Command, LogDatabaseStats));
                 QueryTrace.RemoveQuery(Command.CommandText);
 
-                CacheHandler.AddToCache(this.ToString(), "GetObjectByFieldsAndSearchQuery", ParameterList.ToArray(), dataObjectList);
+                CacheHandler.AddToCache(ToString(), "GetObjectByFieldsAndSearchQuery", ParameterList.ToArray(), dataObjectList);
                 return dataObjectList;
             }
             catch (Exception e)
             {
-                if (this.exceptionHandler(e, "GetObjectByFieldsAndSearchQuery=" + SearchQuery))
+                if (exceptionHandler(e, "GetObjectByFieldsAndSearchQuery=" + SearchQuery))
                 {
-                    return this.GetObjectByFieldsAndSearchQuery(SearchFields, SearchQuery, Exact, LIMIT, orderBy, orderByField);
+                    return GetObjectByPropertyValueAndSearchQuery(PropertyNames, SearchQuery, Exact, LIMIT, orderBy, OrderByPropertyName);
                 }
                 else
                 {
@@ -610,20 +641,20 @@ namespace EasyMySql.Core
             }
         }
 
-        protected virtual T[] GetObjectsByChildID(Field Child, int ID, int LIMIT, OrderBy orderBy = OrderBy.ASC, Field orderByField = null)
+        protected virtual T[] GetObjectsByID(string PropertyName, int ID, int LIMIT, OrderBy orderBy = OrderBy.ASC, string OrderByPropertyName = null)
         {
             List<string> ParameterList = new List<string>();
 
-            ParameterList.Add(Child.FieldName);
+            ParameterList.Add(PropertyName);
             ParameterList.Add(ID.ToString());
             ParameterList.Add(LIMIT.ToString());
             ParameterList.Add(orderBy.ToString());
 
             try
             {
-                if (orderByField != null)
+                if (OrderByPropertyName != null)
                 {
-                    ParameterList.Add(orderByField.FieldName);
+                    ParameterList.Add(OrderByPropertyName);
                 }
             }
             catch (Exception)
@@ -631,7 +662,7 @@ namespace EasyMySql.Core
 
             }
 
-            T[] dataObjects = (T[])CacheHandler.GetData(this.ToString(), "GetObjectsByChildID", ParameterList.ToArray());
+            T[] dataObjects = (T[])CacheHandler.GetData(ToString(), "GetObjectsByChildID", ParameterList.ToArray());
 
             if (dataObjects != null)
             {
@@ -642,27 +673,27 @@ namespace EasyMySql.Core
 
             try
             {
-                Command.CommandText = "SELECT * FROM " + this.tableName + " WHERE " + Child.FieldName + " = @" + Child.FieldName;
-                Command.Parameters.AddWithValue("@" + Child.FieldName, ID);
+                Command.CommandText = "SELECT * FROM " + tableName + " WHERE " + PropertyName + " = @" + PropertyName;
+                Command.Parameters.AddWithValue("@" + PropertyName, ID);
 
-                Command.CommandText = this.addOrderBy(Command.CommandText, orderBy, orderByField);
+                Command.CommandText = addOrderBy(Command.CommandText, orderBy, OrderByPropertyName);
 
                 if (LIMIT > 0)
                 {
-                    Command.CommandText = this.addLimit(Command.CommandText, LIMIT);
+                    Command.CommandText = addLimit(Command.CommandText, LIMIT);
                 }
 
-                T[] dataObjectList = GetDataObjects(DatabaseHandler.ExecuteQuery(Command, this.LogDatabaseStats));
+                T[] dataObjectList = GetDataObjects(DatabaseHandler.ExecuteQuery(Command, LogDatabaseStats));
                 QueryTrace.RemoveQuery(Command.CommandText);
 
-                CacheHandler.AddToCache(this.ToString(), "GetObjectsByChildID", ParameterList.ToArray(), dataObjectList);
+                CacheHandler.AddToCache(ToString(), "GetObjectsByChildID", ParameterList.ToArray(), dataObjectList);
                 return dataObjectList;
             }
             catch (Exception e)
             {
-                if (this.exceptionHandler(e, "GetObjectsByChildID=" + Child.FieldName + ":" + ID))
+                if (exceptionHandler(e, "GetObjectsByChildID=" + PropertyName + ":" + ID))
                 {
-                    return GetObjectsByChildID(Child, ID, LIMIT, orderBy, orderByField);
+                    return GetObjectsByID(PropertyName, ID, LIMIT, orderBy, OrderByPropertyName);
                 }
                 else
                 {
@@ -671,7 +702,7 @@ namespace EasyMySql.Core
             }
         }
 
-        protected virtual T[] GetObjectList(int LIMIT = 0, OrderBy orderBy = OrderBy.ASC, Field orderByField = null)
+        public virtual T[] GetObjectList(int LIMIT = 0, OrderBy orderBy = OrderBy.ASC, string OrderByPropertyName = null)
         {
             List<string> ParameterList = new List<string>();
 
@@ -680,9 +711,9 @@ namespace EasyMySql.Core
 
             try
             {
-                if (orderByField != null)
+                if (OrderByPropertyName != null)
                 {
-                    ParameterList.Add(orderByField.FieldName);
+                    ParameterList.Add(OrderByPropertyName);
                 }
             }
             catch (Exception)
@@ -690,7 +721,7 @@ namespace EasyMySql.Core
 
             }
 
-            T[] dataObjects = (T[])CacheHandler.GetData(this.ToString(), "GetObjectList", ParameterList.ToArray());
+            T[] dataObjects = (T[])CacheHandler.GetData(ToString(), "GetObjectList", ParameterList.ToArray());
 
             if (dataObjects != null)
             {
@@ -700,26 +731,26 @@ namespace EasyMySql.Core
             try
             {
                 MySqlCommand Command = new MySqlCommand();
-                Command.CommandText = "SELECT * FROM " + this.tableName;
+                Command.CommandText = "SELECT * FROM " + tableName;
 
-                Command.CommandText = this.addOrderBy(Command.CommandText, orderBy, orderByField);
+                Command.CommandText = addOrderBy(Command.CommandText, orderBy, OrderByPropertyName);
 
                 if (LIMIT > 0)
                 {
-                    Command.CommandText = this.addLimit(Command.CommandText, LIMIT);
+                    Command.CommandText = addLimit(Command.CommandText, LIMIT);
                 }
 
-                T[] dataObjectList = GetDataObjects(DatabaseHandler.ExecuteQuery(Command, this.LogDatabaseStats));
+                T[] dataObjectList = GetDataObjects(DatabaseHandler.ExecuteQuery(Command, LogDatabaseStats));
                 QueryTrace.RemoveQuery(Command.CommandText);
 
-                CacheHandler.AddToCache(this.ToString(), "GetObjectList", ParameterList.ToArray(), dataObjectList);
+                CacheHandler.AddToCache(ToString(), "GetObjectList", ParameterList.ToArray(), dataObjectList);
                 return dataObjectList;
             }
             catch (Exception e)
             {
-                if (this.exceptionHandler(e, "GetObjectList"))
+                if (exceptionHandler(e, "GetObjectList"))
                 {
-                    return this.GetObjectList(LIMIT, orderBy, orderByField);
+                    return GetObjectList(LIMIT, orderBy, OrderByPropertyName);
                 }
                 else
                 {
@@ -776,11 +807,11 @@ namespace EasyMySql.Core
             }
         }
 
-        protected virtual T[] GetObjectsByChildIDArray(Field Child, int[] ID, int LIMIT, OrderBy orderBy = OrderBy.ASC, Field orderByField = null)
+        protected virtual T[] GetObjectsByChildIDArray(string PropertyName, int[] ID, int LIMIT, OrderBy orderBy = OrderBy.ASC, string OrderByPropertyName = null)
         {
             List<string> ParameterList = new List<string>();
 
-            ParameterList.Add(Child.FieldName);
+            ParameterList.Add(PropertyName);
 
             foreach (int i in ID)
             {
@@ -792,9 +823,9 @@ namespace EasyMySql.Core
 
             try
             {
-                if (orderByField != null)
+                if (OrderByPropertyName != null)
                 {
-                    ParameterList.Add(orderByField.FieldName);
+                    ParameterList.Add(OrderByPropertyName);
                 }
             }
             catch (Exception)
@@ -802,7 +833,7 @@ namespace EasyMySql.Core
 
             }
 
-            T[] dataObjects = (T[])CacheHandler.GetData(this.ToString(), "GetObjectsByChildIDArray", ParameterList.ToArray());
+            T[] dataObjects = (T[])CacheHandler.GetData(ToString(), "GetObjectsByChildIDArray", ParameterList.ToArray());
 
             if (dataObjects != null)
             {
@@ -814,34 +845,34 @@ namespace EasyMySql.Core
 
             try
             {
-                Command.CommandText = "SELECT * FROM " + this.tableName + " WHERE ";
+                Command.CommandText = "SELECT * FROM " + tableName + " WHERE ";
 
                 for (int i = 0; i < ID.Length; i++)
                 {
-                    Command.CommandText += Child.FieldName + " = @" + Child.FieldName + i + " OR ";
-                    Command.Parameters.AddWithValue("@" + Child.FieldName + i, ID[i]);
+                    Command.CommandText += PropertyName + " = @" + PropertyName + i + " OR ";
+                    Command.Parameters.AddWithValue("@" + PropertyName + i, ID[i]);
                 }
 
                 Command.CommandText = Command.CommandText.Substring(0, Command.CommandText.Length - 3);
 
-                Command.CommandText = this.addOrderBy(Command.CommandText, orderBy, orderByField);
+                Command.CommandText = addOrderBy(Command.CommandText, orderBy, OrderByPropertyName);
 
                 if (LIMIT > 0)
                 {
-                    Command.CommandText = this.addLimit(Command.CommandText, LIMIT);
+                    Command.CommandText = addLimit(Command.CommandText, LIMIT);
                 }
 
-                T[] dataObjectList = GetDataObjects(DatabaseHandler.ExecuteQuery(Command, this.LogDatabaseStats));
+                T[] dataObjectList = GetDataObjects(DatabaseHandler.ExecuteQuery(Command, LogDatabaseStats));
                 QueryTrace.RemoveQuery(Command.CommandText);
 
-                CacheHandler.AddToCache(this.ToString(), "GetObjectsByChildIDArray", ParameterList.ToArray(), dataObjectList);
+                CacheHandler.AddToCache(ToString(), "GetObjectsByChildIDArray", ParameterList.ToArray(), dataObjectList);
                 return dataObjectList;
             }
             catch (Exception e)
             {
-                if (this.exceptionHandler(e, "GetObjectsByChildIDArray"))
+                if (exceptionHandler(e, "GetObjectsByChildIDArray"))
                 {
-                    return GetObjectsByChildIDArray(Child, ID, LIMIT, orderBy, orderByField);
+                    return GetObjectsByChildIDArray(PropertyName, ID, LIMIT, orderBy, OrderByPropertyName);
                 }
                 else
                 {
@@ -865,7 +896,7 @@ namespace EasyMySql.Core
             }
             catch (Exception e)
             {
-                if (RegisterError)
+                if (LogErrors)
                 {
                     new EasyMySqlException(this, e);
                 }
@@ -937,7 +968,7 @@ namespace EasyMySql.Core
             }
             catch (Exception e)
             {
-                if (RegisterError)
+                if (LogErrors)
                 {
                     new EasyMySqlException(this, e);
                 }
@@ -962,7 +993,7 @@ namespace EasyMySql.Core
                     Command.Parameters.AddWithValue(ParameterNames[i], Parameters[i]);
                 }
 
-                reader = DatabaseHandler.ExecuteQuery(Command, this.LogDatabaseStats);
+                reader = DatabaseHandler.ExecuteQuery(Command, LogDatabaseStats);
                 int CountFromDatabase = 0;
 
                 if (reader.HasRows)
@@ -976,7 +1007,7 @@ namespace EasyMySql.Core
                 DatabaseHandler.CloseConnectionByReader(reader);
 
                 QueryTrace.RemoveQuery(Command.CommandText);
-                CacheHandler.AddToCache(this.ToString(), "GetCountWithCustomQuery", ParameterList.ToArray(), CountFromDatabase);
+                CacheHandler.AddToCache(ToString(), "GetCountWithCustomQuery", ParameterList.ToArray(), CountFromDatabase);
                 return CountFromDatabase;
             }
             catch (InvalidCastException)
@@ -997,12 +1028,12 @@ namespace EasyMySql.Core
             }
         }
 
-        protected virtual T[] GetObjectsByFilter(Filter filter, int LIMIT = 0, OrderBy orderBy = OrderBy.ASC, Field orderByField = null)
+        protected virtual T[] GetObjectsByFilter(Filter filter, int LIMIT = 0, OrderBy orderBy = OrderBy.ASC, string OrderByPropertyName = null)
         {
-            return GetObjectsByFilter(new Filter[] { filter }, LIMIT, orderBy, orderByField);
+            return GetObjectsByFilter(new Filter[] { filter }, LIMIT, orderBy, OrderByPropertyName);
         }
 
-        protected virtual T[] GetObjectsByFilter(Filter[] filters, int LIMIT = 0, OrderBy orderBy = OrderBy.ASC, Field orderByField = null)
+        protected virtual T[] GetObjectsByFilter(Filter[] filters, int LIMIT = 0, OrderBy orderBy = OrderBy.ASC, string OrderByPropertyName = null)
         {
             List<string> ParameterList = new List<string>();
 
@@ -1037,7 +1068,7 @@ namespace EasyMySql.Core
                 }
 
                 Command.CommandText = Command.CommandText.Substring(0, Command.CommandText.Length - 4);
-                Command.CommandText = addOrderBy(Command.CommandText, orderBy, orderByField);
+                Command.CommandText = addOrderBy(Command.CommandText, orderBy, OrderByPropertyName);
 
                 if (LIMIT > 0)
                 {
@@ -1054,7 +1085,7 @@ namespace EasyMySql.Core
             {
                 if (exceptionHandler(e, "GetObjectsByFilter"))
                 {
-                    return GetObjectsByFilter(filters, LIMIT, orderBy, orderByField);
+                    return GetObjectsByFilter(filters, LIMIT, orderBy, OrderByPropertyName);
                 }
                 else
                 {
@@ -1100,14 +1131,14 @@ namespace EasyMySql.Core
             return Query + " LIMIT " + LIMIT + " ";
         }
 
-        private string addOrderBy(string Query, OrderBy orderBY, Field orderByField)
+        private string addOrderBy(string Query, OrderBy orderBY, string PropertyName)
         {
-            if (orderByField == null)
+            if (PropertyName == null)
             {
-                orderByField = this.fields[0];
+                PropertyName = "ID";
             }
 
-            return Query + " ORDER BY " + orderByField.FieldName + " " + orderBY.ToString() + " ";
+            return Query + " ORDER BY " + PropertyName + " " + orderBY.ToString() + " ";
         }
 
         private bool exceptionHandler(Exception e, string MethodInfo)
@@ -1120,7 +1151,7 @@ namespace EasyMySql.Core
                 }
                 catch (Exception ex)
                 {
-                    if (RegisterError)
+                    if (LogErrors)
                     {
                         new EasyMySqlException(this, ex);
                     }
@@ -1137,7 +1168,7 @@ namespace EasyMySql.Core
                 }
                 catch (Exception ex)
                 {
-                    if (RegisterError)
+                    if (LogErrors)
                     {
                         new EasyMySqlException(this, ex);
                     }
@@ -1156,7 +1187,7 @@ namespace EasyMySql.Core
                 new EasyMySqlException(this, new Exception(QueryTrace.GetTrace()));
             }
 
-            if (RegisterError)
+            if (LogErrors)
             {
                 new EasyMySqlException(this, new InvalidOperationException("Exception has occurred in method: " + MethodInfo));
             }

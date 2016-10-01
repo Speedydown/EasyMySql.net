@@ -1,4 +1,5 @@
-﻿using EasyMySql.Core;
+﻿using EasyMySql.Config;
+using EasyMySql.Core;
 using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;

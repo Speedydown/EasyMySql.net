@@ -11,42 +11,33 @@ namespace EasyMySql.Core
     {
         public static readonly EasyMySqlExceptionHandler instance = new EasyMySqlExceptionHandler();
 
-        private static Field DatahandlerNameField = new Field("DatahandlerName", typeof(string), 175);
-        private static Field TheExceptionField = new Field("TheException", typeof(string), 3000);
-        private static Field TimeStampField = new Field("TimeStamp", typeof(DateTime), 45);
-        private static Field ExceptionHashField = new Field("ExceptionHash", typeof(string), 250);
-
-        private EasyMySqlExceptionHandler() : base(Constants.InternalTablePrefix + "EasyMySqlException", new Field[] {
-                DatahandlerNameField,
-                TheExceptionField,
-                TimeStampField,
-                ExceptionHashField
-                    })
+        private EasyMySqlExceptionHandler()
         {
-            RegisterError = false;
+            tableName = Constants.InternalTablePrefix + "EasyMySqlException";
+            LogErrors = false;
             LogDatabaseStats = false;
         }
 
         public EasyMySqlException EasyMySqlExceptionByID(int ID)
         {
-            return base.GetObjectByID(ID);
+            return GetObjectByID(ID);
         }
 
         public EasyMySqlException[] getExcptionsByDataHandlerName(string DataHandlerName)
         {
-            return GetObjectsBySqlQuery("SELECT * FROM " + tableName + " WHERE " + DatahandlerNameField.FieldName + " = @DataHandlerName ORDER BY ID DESC",
+            return GetObjectsBySqlQuery("SELECT * FROM " + tableName + " WHERE DatahandlerName = @DataHandlerName ORDER BY ID DESC",
                 new string[] { "@DataHandlerName"},
                 new object[] { DataHandlerName });
         }
 
         public EasyMySqlException[] GetWebsiteExceptionList()
         {
-            return GetObjectList(0, OrderBy.DESC, IDField);
+            return GetObjectList(0, OrderBy.DESC, "ID");
         }
 
         public EasyMySqlException[] GetWebsiteExcptionByText(string Text, bool Exact)
         {
-            return GetObjectByFieldsAndSearchQuery(TheExceptionField, Text, Exact, 25, OrderBy.ASC, new Field("ID", typeof(int), 1));
+            return GetObjectByPropertyValueAndSearchQuery("TheException", Text, Exact, 25, OrderBy.ASC, "ID");
         }
 
         public EasyMySqlException[] GetExceptionByHash(string Hash)

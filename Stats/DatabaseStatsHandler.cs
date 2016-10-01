@@ -11,18 +11,16 @@ namespace EasyMySql.Stats
     {
         public static readonly DatabaseStatsHandler instance = new DatabaseStatsHandler();
 
-        private static Field RequestsField = new Field("Requests", typeof(int), 1);
-        private static Field DateField = new Field("Date", typeof(string), 25);
-
         private DatabaseStatsHandler()
-            : base(Constants.InternalTablePrefix + "DatabaseStats", new Field[] { RequestsField, DateField })
+            : base()
         {
-            RegisterError = false;
+            tableName = Constants.InternalTablePrefix + "DatabaseStats";
+            LogErrors = false;
         }
 
         public DatabaseStats GetStatsByDate(string Date)
         {
-            DatabaseStats[] DataList = base.GetObjectByFieldsAndSearchQuery(new Field[] { DateField }, Date, true);
+            DatabaseStats[] DataList = GetObjectByPropertyValueAndSearchQuery(new string[] { "Date" }, Date, true);
 
             if (DataList.Count() > 0)
             {
@@ -36,7 +34,7 @@ namespace EasyMySql.Stats
 
         public DatabaseStats[] GetLast30DatabaseStats()
         {
-            return GetObjectList(30, OrderBy.DESC, new Field("ID", typeof(int), 1));
+            return GetObjectList(30, OrderBy.DESC, "ID");
         }
     }
 }
