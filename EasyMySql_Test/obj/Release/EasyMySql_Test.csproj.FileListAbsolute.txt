@@ -1,0 +1,11 @@
+C:\Users\speed\Documents\GitHub\EasyMySql.net\EasyMySql_Test\bin\Release\EasyMySql_Test.exe.config
+C:\Users\speed\Documents\GitHub\EasyMySql.net\EasyMySql_Test\obj\Release\EasyMySql_Test.csprojResolveAssemblyReference.cache
+C:\Users\speed\Documents\GitHub\EasyMySql.net\EasyMySql_Test\bin\Release\EasyMySql_Test.exe
+C:\Users\speed\Documents\GitHub\EasyMySql.net\EasyMySql_Test\bin\Release\EasyMySql_Test.pdb
+C:\Users\speed\Documents\GitHub\EasyMySql.net\EasyMySql_Test\bin\Release\EasyMySql.dll
+C:\Users\speed\Documents\GitHub\EasyMySql.net\EasyMySql_Test\bin\Release\MySql.Data.dll
+C:\Users\speed\Documents\GitHub\EasyMySql.net\EasyMySql_Test\bin\Release\Newtonsoft.Json.dll
+C:\Users\speed\Documents\GitHub\EasyMySql.net\EasyMySql_Test\bin\Release\EasyMySql.pdb
+C:\Users\speed\Documents\GitHub\EasyMySql.net\EasyMySql_Test\bin\Release\Newtonsoft.Json.xml
+C:\Users\speed\Documents\GitHub\EasyMySql.net\EasyMySql_Test\obj\Release\EasyMySql_Test.exe
+C:\Users\speed\Documents\GitHub\EasyMySql.net\EasyMySql_Test\obj\Release\EasyMySql_Test.pdb

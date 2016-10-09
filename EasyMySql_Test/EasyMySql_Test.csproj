@@ -52,7 +52,7 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\EasyMySql.csproj">
+    <ProjectReference Include="..\EasyMySql\EasyMySql.csproj">
       <Project>{c7e65711-d2d4-4cd4-9895-6f852d214c6b}</Project>
       <Name>EasyMySql</Name>
     </ProjectReference>

@@ -1094,12 +1094,12 @@ namespace EasyMySql.Core
             }
         }
 
-        protected virtual bool DeleteObject(T Object)
+        public virtual bool DeleteObject(T Object)
         {
             return DeleteObject(Object.ID);
         }
 
-        protected virtual bool DeleteObject(int ID)
+        public virtual bool DeleteObject(int ID)
         {
             try
             {
