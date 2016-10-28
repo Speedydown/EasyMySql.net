@@ -6,7 +6,7 @@ using System.Text;
 namespace EasyMySql.Attributes
 {
     [AttributeUsage(AttributeTargets.Property)]
-    public class IgnorePropertyAttribute : Attribute
+    public class IgnoreAttribute : Attribute
     {
      
     }
