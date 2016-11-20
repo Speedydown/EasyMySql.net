@@ -17,7 +17,7 @@ namespace EasyMySql_Test
             //   TestHandler.instance.AddObject(new Test() { BoolValue = true, DateTimeValue = DateTime.Now, DoubleValue = 0.1, IgnoredValue = true, IntValue = 32, StringValue = "Teststring" });
             var Result = TestHandler.instance.GetObjectList();
 
-            var Result = new DataHandler<Test>().GetObjectList();
+          //  var Result = new DataHandler<Test>().GetObjectList();
 
             Console.ReadLine();
         }
