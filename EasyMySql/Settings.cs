@@ -8,38 +8,47 @@ using System.Text;
 
 namespace EasyMySql
 {
-  /// <summary>
-  /// Contains basic settings for EasyMySql.Net.
-  /// </summary>
-  public static class Settings
-  {
-    private static string _ConnectionString;
     /// <summary>
-    /// the Mysql Connectionstring.
+    /// Contains basic settings for EasyMySql.Net.
     /// </summary>
-    public static string ConnectionString
+    public static class Settings
     {
-      get
-      {
-        if (string.IsNullOrWhiteSpace(_ConnectionString))
+        /// <summary>
+        /// Sets the maximum number of mysql connections.
+        /// </summary>
+        public static int MaxNumberOfConnections { get; set; }
+
+        private static string _ConnectionString;
+        /// <summary>
+        /// the Mysql Connectionstring.
+        /// </summary>
+        public static string ConnectionString
         {
-          Console.WriteLine("Could not read ConnectionString data from App.Config, Set ConnectionString manually. (Settings.ConnectionString)");
-          System.Diagnostics.Debug.WriteLine("Could not read ConnectionString data from App.Config, Set ConnectionString manually. (Settings.ConnectionString)");
+            get
+            {
+                if (string.IsNullOrWhiteSpace(_ConnectionString))
+                {
+                    string Error = "Could not read ConnectionString data from Settings, Set ConnectionString manually. (Settings.ConnectionString)";
+                    Console.WriteLine(Error);
+                    System.Diagnostics.Debug.WriteLine(Error);
+                    throw new InvalidOperationException(Error);
+                }
+
+                return _ConnectionString;
+            }
+            set { _ConnectionString = value; }
         }
 
-        return _ConnectionString;
-      }
-      set { _ConnectionString = value; }
-    }
+        /// <summary>
+        /// Enables SQL logging, See EasyMySqlLog class for more info.
+        /// </summary>
+        public static bool LoggingEnabled { get; set; }
 
-    /// <summary>
-    /// Enables SQL logging, See EasyMySqlLog class for more info.
-    /// </summary>
-    public static bool LoggingEnabled { get; set; }
+        static Settings()
+        {
 
-    static Settings()
-    {
-      LoggingEnabled = false;
+            MaxNumberOfConnections = 10;
+            LoggingEnabled = false;
+        }
     }
-  }
 }

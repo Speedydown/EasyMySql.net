@@ -96,13 +96,13 @@ namespace EasyMySql.Core
 
                     foreach (object attribute in pi.GetCustomAttributes(true))
                     {
-                        if (attribute is IgnorePropertyAttribute)
+                        if (attribute is IgnoreAttribute)
                         {
                             HasIgnoreAttribute = true;
                             break;
                         }
 
-                        if (attribute is PrimaryKeyAttribute)
+                        if (attribute is KeyAttribute)
                         {
                             IsPrimaryKey = true;
                         }

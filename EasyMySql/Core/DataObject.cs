@@ -11,7 +11,7 @@ namespace EasyMySql.Core
 {
     public abstract class DataObject
     {
-        [PrimaryKey]
+        [Key]
         public int ID { get; set; }
 
         public DataObject()

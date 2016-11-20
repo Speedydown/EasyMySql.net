@@ -8,6 +8,9 @@ namespace EasyMySql.Core
 {
     internal enum logSeverity { Info = 0, Warning = 1, Error = 2, Critical = 3, Failure = 4 }
 
+    /// <summary>
+    /// Handles logging of EasyMySql.
+    /// </summary>
     public sealed class EasyMySqlLog
     {
         internal static void Log(object Sender, string Message, logSeverity Severity)

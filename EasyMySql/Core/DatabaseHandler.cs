@@ -8,18 +8,25 @@ using System.Configuration;
 using System.Threading;
 using EasyMySql.Performance;
 using EasyMySql.Stats;
-using EasyMySql.Config;
 
 namespace EasyMySql.Core
 {
     internal static class DatabaseHandler
     {
-        private static readonly Semaphore semaphore = new Semaphore(10, 10);
-        private static string ConnectionString = AppConfig.Instance.DatabaseConnections[AppConfig.Instance.CurrentDatabaseConnection];
+        private static readonly Semaphore semaphore = new Semaphore(Settings.MaxNumberOfConnections, Settings.MaxNumberOfConnections);
 
         private static MySqlConnection OpenConnection(bool LogStats)
         {
-            MySqlConnection Connection = new MySqlConnection(ConnectionString);
+            MySqlConnection Connection = null;
+
+            try
+            {
+                Connection = new MySqlConnection(Settings.ConnectionString);
+            }
+            catch
+            {
+                throw new InvalidOperationException("No connection string");
+            }
 
             if (!semaphore.WaitOne(10000))
             {
@@ -49,7 +56,7 @@ namespace EasyMySql.Core
                 System.Diagnostics.Debug.WriteLine("Database connection Failed\n" + e.ToString());
                 Console.WriteLine("Database connection Failed\n" + e.ToString());
 #else
-                throw new CouldNotConnectException("Could not open the connection to the SQL server, Check your server settings. /n" + e.ToString());
+                throw new CouldNotConnectException("Could not open the connection to the SQL server, Connectionstring correct? /n" + e.ToString());
 #endif
             }
 

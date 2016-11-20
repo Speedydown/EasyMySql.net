@@ -16,7 +16,7 @@ namespace EasyMySql_Test.Model
         [StringLength(VarcharLength = 100)]
         public string StringValue { get; set; }
         public DateTime DateTimeValue { get; set; }
-        [IgnoreProperty]
+        [Ignore]
         public bool IgnoredValue { get; set; }
         [StringLength(VarcharLength =250)]
         public string LongerString { get; set; }

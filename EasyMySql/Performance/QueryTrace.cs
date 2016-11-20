@@ -1,5 +1,4 @@
-﻿using EasyMySql.Config;
-using EasyMySql.Core;
+﻿using EasyMySql.Core;
 using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
@@ -25,7 +24,7 @@ namespace EasyMySql.Performance
         {
             ActiveQueries.Add(Query.Trim());
 
-            if (AppConfig.Instance.EnableLogging)
+            if (Settings.LoggingEnabled)
             {
                 string Output = "Query " + GetActiveQueryCount + ": " + Query + "\n\n";
 
