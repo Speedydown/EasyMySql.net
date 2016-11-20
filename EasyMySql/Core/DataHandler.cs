@@ -109,7 +109,7 @@ namespace EasyMySql.Core
 
                         if (pi.PropertyType == typeof(string) && attribute is StringLengthAttribute)
                         {
-                            StringLength = (attribute as StringLengthAttribute).VarcharLength;
+                            StringLength = (attribute as StringLengthAttribute).Length;
                         }
                     }
 

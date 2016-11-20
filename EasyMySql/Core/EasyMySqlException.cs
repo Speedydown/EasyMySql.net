@@ -9,12 +9,12 @@ namespace EasyMySql.Core
 {
     public sealed class EasyMySqlException : DataObject
     {
-        [StringLength(VarcharLength = 125)]
+        [StringLength(Length = 125)]
         public string DatahandlerName { get; private set; }
-        [StringLength(VarcharLength = 250)]
+        [StringLength(Length = 250)]
         public string TheException { get; private set; }
         public DateTime TimeStamp { get; internal set; }
-        [StringLength(VarcharLength = 350)]
+        [StringLength(Length = 350)]
         public string ExceptionHash { get; private set; }
 
         public EasyMySqlException()

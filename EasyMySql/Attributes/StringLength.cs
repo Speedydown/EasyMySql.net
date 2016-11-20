@@ -8,23 +8,23 @@ namespace EasyMySql.Attributes
     [AttributeUsage(AttributeTargets.Property)]
     public class StringLengthAttribute : Attribute
     {
-        private int _VarcharLength;
-        public int VarcharLength
+        private int _Length;
+        public int Length
         {
             get
             {
-                return _VarcharLength;
+                return _Length;
             }
             set
             {
 
-                _VarcharLength = value;
+                _Length = value;
             }
         }
 
         public StringLengthAttribute()
         {
-            VarcharLength = 250;
+            Length = 250;
         }
     }
 }

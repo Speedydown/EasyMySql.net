@@ -13,12 +13,12 @@ namespace EasyMySql_Test.Model
         public int IntValue { get; set; }
         public double DoubleValue { get; set; }
         public bool BoolValue { get; set; }
-        [StringLength(VarcharLength = 100)]
+        [StringLength(Length = 100)]
         public string StringValue { get; set; }
         public DateTime DateTimeValue { get; set; }
         [Ignore]
         public bool IgnoredValue { get; set; }
-        [StringLength(VarcharLength =250)]
+        [StringLength(Length = 250)]
         public string LongerString { get; set; }
     }
 }
