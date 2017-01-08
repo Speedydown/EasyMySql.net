@@ -391,7 +391,7 @@ namespace EasyMySql.Core
 
                             Command.Parameters.AddWithValue("@" + PropertyInfo[i].Name, FieldValue);
 
-                            if (PropertyInfo[i].Type == typeof(string) && FieldValue.ToString().Length > PropertyInfo[i].Length)
+                            if (PropertyInfo[i].Type == typeof(string) && FieldValue != null && FieldValue.ToString().Length > PropertyInfo[i].Length)
                             {
                                 EasyMySqlLog.Log(this, "Field " + PropertyInfo[i].Name + " has exceeded its size, Consider increasing its fieldsize. Do not forgot to force a restruct later.", logSeverity.Warning);
                             }

@@ -21,7 +21,7 @@ namespace EasyMySql.Core
 
         internal void TrimValues()
         {
-            foreach (PropertyInfo propertyInfo in this.GetType().GetProperties())
+            foreach (PropertyInfo propertyInfo in GetType().GetProperties())
             {
                 try
                 {
@@ -29,6 +29,12 @@ namespace EasyMySql.Core
                     {
                         
                         string PropValue = propertyInfo.GetValue(this, null) as string;
+
+                        if (PropValue == null)
+                        {
+                            PropValue = string.Empty;
+                        }
+
                         propertyInfo.SetValue(this, HttpUtility.HtmlDecode(PropValue.Trim()), null);
                     }
                 }

@@ -38,7 +38,7 @@ namespace EasyMySql.Core
         {
             if (LoggingEnabled && (!OnlyLogErrors ||(OnlyLogErrors == true && Severity > logSeverity.Failure)))
             {
-                string FormattedMessage = string.Format("[{0} - [{1}][{2}]: {3}", Severity.ToString(), TimeConverter.GetDateTime().ToString("d-M-yyyy hh:mm"), Sender.ToString(), Message);
+                string FormattedMessage = string.Format("[{0}] - [{1}][{2}]: {3}", Severity.ToString(), TimeConverter.GetDateTime().ToString("d-M-yyyy hh:mm"), Sender.ToString(), Message);
 
                 Debug.WriteLine(FormattedMessage);
                 LogEntries.Add(FormattedMessage);
