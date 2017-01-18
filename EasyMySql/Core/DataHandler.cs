@@ -1230,7 +1230,7 @@ namespace EasyMySql.Core
 
                 for (int i = 0; i < ObjectIds.Count(); i++)
                 {
-                    Command.CommandText += string.Format("DELETE FROM " + tableName + " WHERE ID{0} = @ID{1};", i, i);
+                    Command.CommandText += string.Format("DELETE FROM " + tableName + " WHERE ID = @ID{0};", i);
                     Command.Parameters.AddWithValue("@ID" + i, ObjectIds[i]);
                     LogText.AppendLine(objectType.Name.ToString() + " " + ObjectIds[i] + " has been deleted.");
                 }

@@ -19,6 +19,9 @@ namespace EasyMySql_Test
             Result.First().StringValue = "test_Multiple";
             TestHandler.instance.UpdateObjects(Result);
             Result = TestHandler.instance.GetObjectList();
+
+            TestHandler.instance.DeleteObjects(Result);
+            Result = TestHandler.instance.GetObjectList();
             //  var Result = new DataHandler<Test>().GetObjectList();
 
             Console.ReadLine();
