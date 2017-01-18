@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 
 namespace EasyMySql.Core
 {
@@ -493,6 +494,93 @@ namespace EasyMySql.Core
                 if (exceptionHandler(e, "UpdateObject"))
                 {
                     return UpdateObject(dataObject);
+                }
+                else
+                {
+                    return null;
+                }
+            }
+        }
+
+        public virtual T[] UpdateObjects(T[] DataObjects)
+        {
+            if (DataObjects == null || DataObjects.Count() == 0)
+            {
+                return null;
+            }
+
+            MySqlCommand Command = new MySqlCommand();
+            StringBuilder LogText = new StringBuilder();
+            Command.CommandText = string.Empty;
+
+            foreach (T dataObject in DataObjects)
+            {
+                dataObject.TrimValues();
+
+                IList<PropertyInfo> props = new List<PropertyInfo>(objectType.GetProperties());
+
+                if (dataObject.ID == 0)
+                {
+                    throw new Exception("ID can not be 0. try adding this object first.");
+                }
+
+                string CommandText = "UPDATE " + tableName + " SET ";
+
+                foreach (DataObjectPropertyInfo pi in PropertyInfo)
+                {
+                    if (pi.Name != "ID")
+                    {
+                        CommandText += pi.Name + " = @" + pi.Name + dataObject.ID + ", ";
+
+                        foreach (PropertyInfo opi in props)
+                        {
+                            if (opi.Name == pi.Name)
+                            {
+                                if (opi.PropertyType == typeof(DateTime))
+                                {
+                                    DateTime dt = (DateTime)opi.GetValue(dataObject, null);
+
+                                    Command.Parameters.AddWithValue("@" + pi.Name + dataObject.ID, dt.Ticks);
+                                    break;
+                                }
+                                else
+                                {
+                                    Command.Parameters.AddWithValue("@" + pi.Name + dataObject.ID, opi.GetValue(dataObject, null));
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                CommandText = CommandText.Substring(0, CommandText.Length - 2);
+
+                CommandText += " WHERE ID = @ID" + dataObject.ID;
+                Command.Parameters.AddWithValue("ID" + dataObject.ID, dataObject.ID);
+
+                CommandText += ";";
+                Command.CommandText += CommandText;
+                LogText.AppendLine(dataObject.ToString() + " with id " + dataObject.ID + " has been updated.");
+            }
+
+            try
+            {
+                DatabaseHandler.ExecuteNonQuery(Command, LogDatabaseStats);
+
+                if (LogErrors)
+                {
+                    EasyMySqlLog.Log(this, LogText.ToString(), logSeverity.Info);
+                }
+
+                CacheHandler.ClearData(ToString());
+
+                return DataObjects;
+            }
+            catch (Exception e)
+            {
+                if (exceptionHandler(e, "UpdateObjects"))
+                {
+                    return UpdateObjects(DataObjects);
                 }
                 else
                 {
@@ -1124,6 +1212,56 @@ namespace EasyMySql.Core
                     return false;
                 }
             }
+        }
+
+        public virtual bool DeleteObjects(int[] ObjectIds)
+        {
+            try
+            {
+                if (ObjectIds == null || ObjectIds.Count() == 0)
+                {
+                    return false;
+                }
+
+                MySqlCommand Command = new MySqlCommand();
+
+                Command.CommandText = string.Empty;
+                StringBuilder LogText = new StringBuilder();
+
+                for (int i = 0; i < ObjectIds.Count(); i++)
+                {
+                    Command.CommandText += string.Format("DELETE FROM " + tableName + " WHERE ID{0} = @ID{1};", i, i);
+                    Command.Parameters.AddWithValue("@ID" + i, ObjectIds[i]);
+                    LogText.AppendLine(objectType.Name.ToString() + " " + ObjectIds[i] + " has been deleted.");
+                }
+
+                DatabaseHandler.ExecuteNonQuery(Command, LogDatabaseStats);
+                CacheHandler.ClearData(ToString());
+                EasyMySqlLog.Log(this, LogText.ToString(), logSeverity.Info);
+
+                return true;
+            }
+            catch (Exception e)
+            {
+                if (exceptionHandler(e, "DeleteObjects=" + ObjectIds))
+                {
+                    return DeleteObjects(ObjectIds);
+                }
+                else
+                {
+                    return false;
+                }
+            }
+        }
+
+        public virtual bool DeleteObjects(T[] Objects)
+        {
+            if (Objects != null && Objects.Count() > 0)
+            {
+                return DeleteObjects(Objects.Select(o => o.ID).ToArray());
+            }
+
+            return false;
         }
 
         private string addLimit(string Query, int LIMIT)
