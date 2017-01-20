@@ -34,7 +34,7 @@ namespace EasyMySql.Stats
 
         public DatabaseStats[] GetDatabaseStats(int NumberOfDays = 30)
         {
-            return GetObjectList(NumberOfDays, OrderBy.DESC, "ID");
+            return GetObjects(NumberOfDays, OrderBy.DESC, "ID");
         }
     }
 }

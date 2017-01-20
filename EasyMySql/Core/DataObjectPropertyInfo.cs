@@ -11,5 +11,6 @@ namespace EasyMySql.Core
         public Type Type { get; set; }
         public int Length { get; set; }
         public bool IsPrimaryKey { get; set; }
+        public bool IsUnique { get; set; }
     }
 }

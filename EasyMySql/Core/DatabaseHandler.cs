@@ -92,6 +92,11 @@ namespace EasyMySql.Core
             }
             catch (MySqlException e)
             {
+                if (e.Message.StartsWith("Duplicate entry"))
+                {
+                    throw e;
+                }
+
                 QueryTrace.RemoveQuery(Command.CommandText);
                 if (HandleException(Connection, e, RetryCount))
                 {

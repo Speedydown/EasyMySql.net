@@ -25,7 +25,7 @@ namespace EasyMySql.Stats
                     }
                     else
                     {
-                        DatabaseStatsHandler.instance.AddObject(_CurrentStats);
+                        DatabaseStatsHandler.instance.Add(_CurrentStats);
                     }
                 }
 
@@ -33,14 +33,14 @@ namespace EasyMySql.Stats
                 {
                     DatabaseStats DatabaseStats = _CurrentStats;
                     _CurrentStats = new DatabaseStats(0, 0, TimeConverter.GetDateTime().ToString("d-M-yyyy"));
-                    DatabaseStatsHandler.instance.UpdateObject(DatabaseStats);
-                    DatabaseStatsHandler.instance.AddObject(_CurrentStats);
+                    DatabaseStatsHandler.instance.Update(DatabaseStats);
+                    DatabaseStatsHandler.instance.Add(_CurrentStats);
                 }
 
                 if (TimeConverter.GetDateTime().Subtract(_CurrentStats.LastUpdated).Minutes > 15)
                 {
                     _CurrentStats.SetlastUpdated();
-                    DatabaseStatsHandler.instance.UpdateObject(_CurrentStats);
+                    DatabaseStatsHandler.instance.Update(_CurrentStats);
                 }
 
                 return _CurrentStats;
@@ -48,7 +48,7 @@ namespace EasyMySql.Stats
         }
 
         public int Requests { get; private set; }
-        [StringLength(Length = 75)]
+        [Length(Length = 75)]
         public string Date { get; private set; }
         private DateTime LastUpdated { get; set; }
 

@@ -13,7 +13,12 @@ namespace EasyMySql_Test.Model
 
         private TestHandler()
         {
+            tableName = "test6";
+        }
 
+        public void Restructure()
+        {
+            base.RestructureTable();
         }
     }
 }

@@ -3,6 +3,7 @@ using EasyMySql.Performance;
 using MySql.Data.MySqlClient;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -93,6 +94,7 @@ namespace EasyMySql.Core
                 {
                     bool IsPrimaryKey = false;
                     bool HasIgnoreAttribute = false;
+                    bool IsUnique = false;
                     int StringLength = 250;
 
                     foreach (object attribute in pi.GetCustomAttributes(true))
@@ -108,9 +110,14 @@ namespace EasyMySql.Core
                             IsPrimaryKey = true;
                         }
 
-                        if (pi.PropertyType == typeof(string) && attribute is StringLengthAttribute)
+                        if (attribute is UniqueAttribute)
                         {
-                            StringLength = (attribute as StringLengthAttribute).Length;
+                            IsUnique = true;
+                        }
+
+                        if (pi.PropertyType == typeof(string) && attribute is LengthAttribute)
+                        {
+                            StringLength = (attribute as LengthAttribute).Length;
                         }
                     }
 
@@ -125,6 +132,7 @@ namespace EasyMySql.Core
                         Type = pi.PropertyType,
                         Length = pi.PropertyType.Equals(typeof(string)) ? StringLength : 1,
                         IsPrimaryKey = IsPrimaryKey,
+                        IsUnique = IsUnique,
                     });
                 }
             }
@@ -141,6 +149,7 @@ namespace EasyMySql.Core
             try
             {
                 DataObjectPropertyInfo PrimaryKey = null;
+                List<DataObjectPropertyInfo> UniqueColumns = PropertyInfo.Where(p => p.IsUnique).ToList();
 
                 MySqlCommand Command = new MySqlCommand();
                 Command.CommandText = "CREATE TABLE IF NOT EXISTS " + tableName + " ( ";
@@ -184,7 +193,7 @@ namespace EasyMySql.Core
                 if (PrimaryKey != null)
                 {
                     Command.CommandText += "PRIMARY KEY (" + PrimaryKey.Name + "), " +
-                        "UNIQUE KEY ID_UNIQUE (" + PrimaryKey.Name + ") );";
+                        "UNIQUE KEY ID_UNIQUE (" + PrimaryKey.Name + " ) );";
                 }
                 else
                 {
@@ -192,11 +201,24 @@ namespace EasyMySql.Core
                     Command.CommandText += " );";
                 }
 
+                if (UniqueColumns.Count > 0)
+                {
+                    Command.CommandText = Command.CommandText.Substring(0, Command.CommandText.Length - 2) + ", unique (";
+
+                    foreach (var UniqueColumn in UniqueColumns)
+                    {
+                        Command.CommandText += UniqueColumn.Name + ", ";
+                    }
+
+                    Command.CommandText = Command.CommandText.Substring(0, Command.CommandText.Length - 2);
+                    Command.CommandText += ") );";
+                }
+
                 DatabaseHandler.ExecuteNonQuery(Command, LogDatabaseStats);
 
                 if (DefaultDataObject != null)
                 {
-                    AddObject(DefaultDataObject);
+                    Add(DefaultDataObject);
                 }
 
                 return true;
@@ -213,7 +235,7 @@ namespace EasyMySql.Core
             }
         }
 
-        private bool RestructureTable()
+        protected virtual bool RestructureTable()
         {
             DataObjectPropertyInfo PrimaryKey = null;
 
@@ -324,6 +346,31 @@ namespace EasyMySql.Core
                 }
             }
 
+            List<DataObjectPropertyInfo> UniqueColumns = PropertyInfo.Where(p => p.IsUnique).ToList();
+
+            if (UniqueColumns.Count > 0)
+            {
+                try
+                {
+                    MySqlCommand Command = new MySqlCommand();
+                    Command.CommandText = "alter TABLE " + tableName + " ADD UNIQUE (";
+
+                    foreach (var uColumn in UniqueColumns)
+                    {
+                        Command.CommandText += uColumn.Name + ", ";
+                    }
+
+                    Command.CommandText = Command.CommandText.Substring(0, Command.CommandText.Length - 2);
+                    Command.CommandText += ");";
+
+                    DatabaseHandler.ExecuteNonQuery(Command, LogDatabaseStats);
+                }
+                catch
+                {
+
+                }
+            }
+
             if (PrimaryKey != null)
             {
                 try
@@ -351,7 +398,37 @@ namespace EasyMySql.Core
             return true;
         }
 
-        public virtual T AddObject(T DataObject)
+        public virtual T Save(T DataObject)
+        {
+            if (DataObject.ID == 0)
+            {
+                return Add(DataObject);
+            }
+            else
+            {
+                return Update(DataObject);
+            }
+        }
+
+        public virtual IEnumerable<T> Save(IEnumerable<T> DataObjects)
+        {
+            if (DataObjects == null || DataObjects.Count() == 0)
+            {
+                return null;
+            }
+
+            Update(DataObjects.Where(d => d.ID != 0));
+            var NewDataObjects = DataObjects.Where(d => d.ID == 0);
+
+            foreach (T Object in DataObjects)
+            {
+                Save(Object);
+            }
+
+            return DataObjects;
+        }
+
+        public virtual T Add(T DataObject)
         {
             DataObject.TrimValues();
 
@@ -420,23 +497,24 @@ namespace EasyMySql.Core
             {
                 if (exceptionHandler(e, "AddObject"))
                 {
-                    return AddObject(DataObject);
+                    return Add(DataObject);
                 }
                 else
                 {
+                    Debug.WriteLine(e.ToString());
                     return null;
                 }
 
             }
         }
 
-        public virtual T UpdateObject(T dataObject)
+        public virtual T Update(T DataObject)
         {
-            dataObject.TrimValues();
+            DataObject.TrimValues();
 
             IList<PropertyInfo> props = new List<PropertyInfo>(objectType.GetProperties());
 
-            if (dataObject.ID == 0)
+            if (DataObject.ID == 0)
             {
                 throw new Exception("ID can not be 0. try adding this object first.");
             }
@@ -458,14 +536,14 @@ namespace EasyMySql.Core
                             {
                                 if (opi.PropertyType == typeof(DateTime))
                                 {
-                                    DateTime dt = (DateTime)opi.GetValue(dataObject, null);
+                                    DateTime dt = (DateTime)opi.GetValue(DataObject, null);
 
                                     Command.Parameters.AddWithValue("@" + pi.Name, dt.Ticks);
                                     break;
                                 }
                                 else
                                 {
-                                    Command.Parameters.AddWithValue("@" + pi.Name, opi.GetValue(dataObject, null));
+                                    Command.Parameters.AddWithValue("@" + pi.Name, opi.GetValue(DataObject, null));
                                     break;
                                 }
                             }
@@ -476,24 +554,24 @@ namespace EasyMySql.Core
                 Command.CommandText = Command.CommandText.Substring(0, Command.CommandText.Length - 2);
 
                 Command.CommandText += " WHERE ID = @ID";
-                Command.Parameters.AddWithValue("ID", dataObject.ID);
+                Command.Parameters.AddWithValue("ID", DataObject.ID);
 
                 DatabaseHandler.ExecuteNonQuery(Command, LogDatabaseStats);
 
                 if (LogErrors)
                 {
-                    EasyMySqlLog.Log(this, dataObject.ToString() + " with id " + dataObject.ID + " has been updated.", logSeverity.Info);
+                    EasyMySqlLog.Log(this, DataObject.ToString() + " with id " + DataObject.ID + " has been updated.", logSeverity.Info);
                 }
 
                 CacheHandler.ClearData(ToString());
 
-                return dataObject;
+                return DataObject;
             }
             catch (Exception e)
             {
                 if (exceptionHandler(e, "UpdateObject"))
                 {
-                    return UpdateObject(dataObject);
+                    return Update(DataObject);
                 }
                 else
                 {
@@ -502,7 +580,7 @@ namespace EasyMySql.Core
             }
         }
 
-        public virtual T[] UpdateObjects(T[] DataObjects)
+        public virtual IEnumerable<T> Update(IEnumerable<T> DataObjects)
         {
             if (DataObjects == null || DataObjects.Count() == 0)
             {
@@ -580,7 +658,7 @@ namespace EasyMySql.Core
             {
                 if (exceptionHandler(e, "UpdateObjects"))
                 {
-                    return UpdateObjects(DataObjects);
+                    return Update(DataObjects);
                 }
                 else
                 {
@@ -729,11 +807,11 @@ namespace EasyMySql.Core
             }
         }
 
-        protected virtual T[] GetObjectsByID(string PropertyName, int ID, int LIMIT, OrderBy orderBy = OrderBy.ASC, string OrderByPropertyName = null)
+        protected virtual T[] GetObjects(string IDPropertyName, int ID, int LIMIT, OrderBy orderBy = OrderBy.ASC, string OrderByPropertyName = null)
         {
             List<string> ParameterList = new List<string>();
 
-            ParameterList.Add(PropertyName);
+            ParameterList.Add(IDPropertyName);
             ParameterList.Add(ID.ToString());
             ParameterList.Add(LIMIT.ToString());
             ParameterList.Add(orderBy.ToString());
@@ -761,8 +839,8 @@ namespace EasyMySql.Core
 
             try
             {
-                Command.CommandText = "SELECT * FROM " + tableName + " WHERE " + PropertyName + " = @" + PropertyName;
-                Command.Parameters.AddWithValue("@" + PropertyName, ID);
+                Command.CommandText = "SELECT * FROM " + tableName + " WHERE " + IDPropertyName + " = @" + IDPropertyName;
+                Command.Parameters.AddWithValue("@" + IDPropertyName, ID);
 
                 Command.CommandText = addOrderBy(Command.CommandText, orderBy, OrderByPropertyName);
 
@@ -779,9 +857,9 @@ namespace EasyMySql.Core
             }
             catch (Exception e)
             {
-                if (exceptionHandler(e, "GetObjectsByChildID=" + PropertyName + ":" + ID))
+                if (exceptionHandler(e, "GetObjectsByChildID=" + IDPropertyName + ":" + ID))
                 {
-                    return GetObjectsByID(PropertyName, ID, LIMIT, orderBy, OrderByPropertyName);
+                    return GetObjects(IDPropertyName, ID, LIMIT, orderBy, OrderByPropertyName);
                 }
                 else
                 {
@@ -790,7 +868,7 @@ namespace EasyMySql.Core
             }
         }
 
-        public virtual T[] GetObjectList(int LIMIT = 0, OrderBy orderBy = OrderBy.ASC, string OrderByPropertyName = null)
+        public virtual T[] GetObjects(int LIMIT = 0, OrderBy orderBy = OrderBy.ASC, string OrderByPropertyName = null)
         {
             List<string> ParameterList = new List<string>();
 
@@ -838,7 +916,7 @@ namespace EasyMySql.Core
             {
                 if (exceptionHandler(e, "GetObjectList"))
                 {
-                    return GetObjectList(LIMIT, orderBy, OrderByPropertyName);
+                    return GetObjects(LIMIT, orderBy, OrderByPropertyName);
                 }
                 else
                 {
@@ -847,7 +925,7 @@ namespace EasyMySql.Core
             }
         }
 
-        protected virtual T[] GetObjectsByIDArray(int[] ID)
+        protected virtual T[] GetObjects(IEnumerable<int> ID)
         {
             List<string> ParameterList = new List<string>();
 
@@ -868,10 +946,10 @@ namespace EasyMySql.Core
                 MySqlCommand Command = new MySqlCommand();
                 Command.CommandText = "SELECT * FROM " + tableName + " WHERE ";
 
-                for (int i = 0; i < ID.Length; i++)
+                for (int i = 0; i < ID.Count(); i++)
                 {
                     Command.CommandText += "ID = @ID" + i + " OR ";
-                    Command.Parameters.AddWithValue("@ID" + i, ID[i]);
+                    Command.Parameters.AddWithValue("@ID" + i, ID.ElementAt(i));
                 }
 
                 Command.CommandText = Command.CommandText.Substring(0, Command.CommandText.Length - 3);
@@ -886,7 +964,7 @@ namespace EasyMySql.Core
             {
                 if (exceptionHandler(e, "GetObjectsByIDArray"))
                 {
-                    return GetObjectsByIDArray(ID);
+                    return GetObjects(ID);
                 }
                 else
                 {
@@ -1182,12 +1260,12 @@ namespace EasyMySql.Core
             }
         }
 
-        public virtual bool DeleteObject(T Object)
+        public virtual bool Delete(T Object)
         {
-            return DeleteObject(Object.ID);
+            return Delete(Object.ID);
         }
 
-        public virtual bool DeleteObject(int ID)
+        public virtual bool Delete(int ID)
         {
             try
             {
@@ -1205,7 +1283,7 @@ namespace EasyMySql.Core
             {
                 if (exceptionHandler(e, "DeleteObject=" + ID))
                 {
-                    return DeleteObject(ID);
+                    return Delete(ID);
                 }
                 else
                 {
@@ -1214,7 +1292,7 @@ namespace EasyMySql.Core
             }
         }
 
-        public virtual bool DeleteObjects(int[] ObjectIds)
+        public virtual bool Delete(IEnumerable<int> ObjectIds)
         {
             try
             {
@@ -1231,8 +1309,8 @@ namespace EasyMySql.Core
                 for (int i = 0; i < ObjectIds.Count(); i++)
                 {
                     Command.CommandText += string.Format("DELETE FROM " + tableName + " WHERE ID = @ID{0};", i);
-                    Command.Parameters.AddWithValue("@ID" + i, ObjectIds[i]);
-                    LogText.AppendLine(objectType.Name.ToString() + " " + ObjectIds[i] + " has been deleted.");
+                    Command.Parameters.AddWithValue("@ID" + i, ObjectIds.ElementAt(i));
+                    LogText.AppendLine(objectType.Name.ToString() + " " + ObjectIds.ElementAt(i) + " has been deleted.");
                 }
 
                 DatabaseHandler.ExecuteNonQuery(Command, LogDatabaseStats);
@@ -1245,7 +1323,7 @@ namespace EasyMySql.Core
             {
                 if (exceptionHandler(e, "DeleteObjects=" + ObjectIds))
                 {
-                    return DeleteObjects(ObjectIds);
+                    return Delete(ObjectIds);
                 }
                 else
                 {
@@ -1254,11 +1332,11 @@ namespace EasyMySql.Core
             }
         }
 
-        public virtual bool DeleteObjects(T[] Objects)
+        public virtual bool Delete(IEnumerable<T> Objects)
         {
             if (Objects != null && Objects.Count() > 0)
             {
-                return DeleteObjects(Objects.Select(o => o.ID).ToArray());
+                return Delete(Objects.Select(o => o.ID).ToArray());
             }
 
             return false;

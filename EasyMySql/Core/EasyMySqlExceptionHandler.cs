@@ -32,7 +32,7 @@ namespace EasyMySql.Core
 
         public EasyMySqlException[] GetWebsiteExceptionList()
         {
-            return GetObjectList(0, OrderBy.DESC, "ID");
+            return GetObjects(0, OrderBy.DESC, "ID");
         }
 
         public EasyMySqlException[] GetWebsiteExcptionByText(string Text, bool Exact)
@@ -51,16 +51,16 @@ namespace EasyMySql.Core
         {
             if (Exception.ID == 0)
             {
-                return AddObject(Exception);
+                return Add(Exception);
             }
 
             Exception.TimeStamp = DateTime.Now;
-            return UpdateObject(Exception);
+            return Update(Exception);
         }
 
         public bool DeleteWebsiteException(int ID)
         {
-            return DeleteObject(ID);
+            return Delete(ID);
         }
 
         public int GetExceptionsCount()

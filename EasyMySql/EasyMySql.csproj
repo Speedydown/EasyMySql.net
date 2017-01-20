@@ -64,8 +64,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Attributes\IgnoreAttribute.cs" />
-    <Compile Include="Attributes\PrimaryKey.cs" />
-    <Compile Include="Attributes\StringLength.cs" />
+    <Compile Include="Attributes\KeyAttribute.cs" />
+    <Compile Include="Attributes\LengthAttribute.cs" />
+    <Compile Include="Attributes\UniqueAttribute.cs" />
     <Compile Include="Core\CacheHandler.cs" />
     <Compile Include="Core\DatabaseHandler.cs" />
     <Compile Include="Core\Filter.cs" />

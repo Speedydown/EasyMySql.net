@@ -14,15 +14,13 @@ namespace EasyMySql_Test
         static void Main(string[] args)
         {
             Settings.ConnectionString = "Server=MYSQL5017.SmarterASP.NET;Database=db_9b4757_easysql;Uid=9b4757_easysql;Pwd=Geheim1!";
-             //  TestHandler.instance.AddObject(new Test() { BoolValue = true, DateTimeValue = DateTime.Now, DoubleValue = 0.1, IgnoredValue = true, IntValue = 32, StringValue = "Teststring" });
-            var Result = TestHandler.instance.GetObjectList();
-            Result.First().StringValue = "test_Multiple";
-            TestHandler.instance.UpdateObjects(Result);
-            Result = TestHandler.instance.GetObjectList();
+         //   TestHandler.instance.Restructure();
+            TestHandler.instance.Add(new Test() { BoolValue = true, DateTimeValue = DateTime.Now, DoubleValue = 0.123, IgnoredValue = true, IntValue = 339223, StringValue = "Teststring" });
+         //   TestHandler.instance.AddObject(new Test() { BoolValue = true, DateTimeValue = DateTime.Now, DoubleValue = 0.1, IgnoredValue = true, IntValue = 32, StringValue = "Teststring" });
 
-            TestHandler.instance.DeleteObjects(Result);
-            Result = TestHandler.instance.GetObjectList();
-            //  var Result = new DataHandler<Test>().GetObjectList();
+       //  TestHandler.instance.Save()
+
+            var Result = TestHandler.instance.GetObjects();
 
             Console.ReadLine();
         }

@@ -16,7 +16,7 @@ namespace EasyMySql
         /// <summary>
         /// Sets the maximum number of mysql connections.
         /// </summary>
-        public static int MaxNumberOfConnections { get; set; }
+        public static int MaxNumberOfConnections { internal get; set; }
 
         private static string _ConnectionString;
         /// <summary>
@@ -24,7 +24,7 @@ namespace EasyMySql
         /// </summary>
         public static string ConnectionString
         {
-            get
+            internal get
             {
                 if (string.IsNullOrWhiteSpace(_ConnectionString))
                 {
@@ -49,6 +49,12 @@ namespace EasyMySql
 
             MaxNumberOfConnections = 10;
             LoggingEnabled = false;
+        }
+
+       public static void Init(string ConnectionString, int MaxNumberOfConnections)
+        {
+            Settings.ConnectionString = ConnectionString;
+            Settings.MaxNumberOfConnections = MaxNumberOfConnections;
         }
     }
 }

@@ -9,12 +9,12 @@ namespace EasyMySql.Core
 {
     public sealed class EasyMySqlException : DataObject
     {
-        [StringLength(Length = 125)]
+        [LengthAttribute(Length = 125)]
         public string DatahandlerName { get; private set; }
-        [StringLength(Length = 250)]
+        [LengthAttribute(Length = 250)]
         public string TheException { get; private set; }
         public DateTime TimeStamp { get; internal set; }
-        [StringLength(Length = 350)]
+        [LengthAttribute(Length = 350)]
         public string ExceptionHash { get; private set; }
 
         public EasyMySqlException()
@@ -22,7 +22,7 @@ namespace EasyMySql.Core
 
         }
 
-        public EasyMySqlException(object Datahandler, Exception e) : this(0, Datahandler.ToString(), e.Message, TimeConverter.GetDateTime(), Encrypt.EncryptPassword(e.ToString()))
+        public EasyMySqlException(object Datahandler, Exception e) : this(0, Datahandler.ToString(), e.Message, TimeConverter.GetDateTime(), Encrypt.HashString(e.ToString()))
         {
             EasyMySqlLog.Log(Datahandler, "Exception occurred:\n" + e.ToString(), logSeverity.Error);
         }
@@ -41,12 +41,12 @@ namespace EasyMySql.Core
 
                 if (wList.Count() == 0)
                 {
-                    EasyMySqlExceptionHandler.instance.AddObject(this);
+                    EasyMySqlExceptionHandler.instance.Add(this);
                 }
                 else
                 {
                     EasyMySqlExceptionHandler.instance.DeleteWebsiteException(wList.First().ID);
-                    EasyMySqlExceptionHandler.instance.AddObject(this);
+                    EasyMySqlExceptionHandler.instance.Add(this);
                 }
             }
         }
