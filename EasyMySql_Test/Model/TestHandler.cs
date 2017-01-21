@@ -13,7 +13,15 @@ namespace EasyMySql_Test.Model
 
         private TestHandler()
         {
-            tableName = "test6";
+            tableName = "test11";
+        }
+
+        public Test[] TestFilter()
+        {
+            Filter filter = new Filter(FilterType.And, null, null);
+            filter.AddCondition("IntValue", 339223);
+
+            return GetItemsByFilter(filter);
         }
 
         public void Restructure()

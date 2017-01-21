@@ -15,16 +15,11 @@ namespace EasyMySql.Attributes
             {
                 return _Length;
             }
-            set
-            {
-
-                _Length = value;
-            }
         }
 
-        public LengthAttribute()
+        public LengthAttribute(int Length)
         {
-            Length = 250;
+            _Length = Length;
         }
     }
 }

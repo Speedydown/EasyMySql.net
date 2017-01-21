@@ -20,29 +20,29 @@ namespace EasyMySql.Core
 
         public EasyMySqlException EasyMySqlExceptionByID(int ID)
         {
-            return GetObjectByID(ID);
+            return GetItem(ID);
         }
 
         public EasyMySqlException[] getExcptionsByDataHandlerName(string DataHandlerName)
         {
-            return GetObjectsBySqlQuery("SELECT * FROM " + tableName + " WHERE DatahandlerName = @DataHandlerName ORDER BY ID DESC",
+            return GetItems("SELECT * FROM " + tableName + " WHERE DatahandlerName = @DataHandlerName ORDER BY ID DESC",
                 new string[] { "@DataHandlerName"},
                 new object[] { DataHandlerName });
         }
 
         public EasyMySqlException[] GetWebsiteExceptionList()
         {
-            return GetObjects(0, OrderBy.DESC, "ID");
+            return GetItems(0, OrderBy.DESC, "ID");
         }
 
         public EasyMySqlException[] GetWebsiteExcptionByText(string Text, bool Exact)
         {
-            return GetObjectByPropertyValueAndSearchQuery("TheException", Text, Exact, 25, OrderBy.ASC, "ID");
+            return GetItems("TheException", Text, Exact, 25, OrderBy.ASC, "ID");
         }
 
         public EasyMySqlException[] GetExceptionByHash(string Hash)
         {
-            return GetObjectsBySqlQuery("SELECT * FROM " + tableName + " WHERE ExceptionHash = @ExceptionHash",
+            return GetItems("SELECT * FROM " + tableName + " WHERE ExceptionHash = @ExceptionHash",
                 new string[] { "@ExceptionHash" },
                 new object[] { Hash });
         }
@@ -65,7 +65,7 @@ namespace EasyMySql.Core
 
         public int GetExceptionsCount()
         {
-            return GetObjectCountWithSqlQuery("SELECT COUNT(*) AS Count FROM " + tableName
+            return CountItems("SELECT COUNT(*) AS Count FROM " + tableName
                 , new string[] { },
                 new object[] { });
         }

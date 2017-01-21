@@ -40,15 +40,20 @@ namespace EasyMySql
         }
 
         /// <summary>
+        /// Forces a restructure of the MySqlTable when initializing a datahandler.
+        /// </summary>
+        public static bool ForceRestructure { get; set; }
+
+        /// <summary>
         /// Enables SQL logging, See EasyMySqlLog class for more info.
         /// </summary>
         public static bool LoggingEnabled { get; set; }
 
         static Settings()
         {
-
             MaxNumberOfConnections = 10;
             LoggingEnabled = false;
+            ForceRestructure = false;
         }
 
        public static void Init(string ConnectionString, int MaxNumberOfConnections)

@@ -48,7 +48,7 @@ namespace EasyMySql.Stats
         }
 
         public int Requests { get; private set; }
-        [Length(Length = 75)]
+        [Length(75)]
         public string Date { get; private set; }
         private DateTime LastUpdated { get; set; }
 

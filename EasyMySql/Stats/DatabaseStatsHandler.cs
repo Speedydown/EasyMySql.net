@@ -20,7 +20,7 @@ namespace EasyMySql.Stats
 
         public DatabaseStats GetStatsByDate(string Date)
         {
-            DatabaseStats[] DataList = GetObjectByPropertyValueAndSearchQuery(new string[] { "Date" }, Date, true);
+            DatabaseStats[] DataList = GetItems("Date", Date, true);
 
             if (DataList.Count() > 0)
             {
@@ -34,7 +34,7 @@ namespace EasyMySql.Stats
 
         public DatabaseStats[] GetDatabaseStats(int NumberOfDays = 30)
         {
-            return GetObjects(NumberOfDays, OrderBy.DESC, "ID");
+            return GetItems(NumberOfDays, OrderBy.DESC, "ID");
         }
     }
 }
