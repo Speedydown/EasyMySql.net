@@ -12,7 +12,7 @@ Set the MySql Connection string:
 
 <h>Step 2:</h2>
 	 
-Create a class that inherits the DataObject And decorate it with the <b>Ignore</b> and/or <b>Length</b> attributes
+Create a class that inherits the DataObject And decorate it with the <b>Ignore</b>, <b>Unique</b> and/or <b>Length</b> attributes
 
 	public class MysqlObject : DataObject
     {
