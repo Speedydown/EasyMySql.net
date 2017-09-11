@@ -12,12 +12,12 @@ namespace EasyMySql.Core
 {
     public enum OrderBy { ASC, DESC }
 
-    public class DataHandler<T> where T : DataObject, new()
+    public class DataHandler<T> : IDisposable where T : DataObject, new()
     {
         protected bool LogErrors { get; set; }
         protected bool LogDatabaseStats { get; set; }
         protected T DefaultDataObject { get; set; }
-        public string tableName { get; protected set; }
+        public string TableName { get; protected set; }
         private DataObjectPropertyInfo[] PropertyInfo { get; set; }
         protected Type objectType { get; set; }
         private bool HasRestructered = false;
@@ -25,7 +25,7 @@ namespace EasyMySql.Core
         public DataHandler()
         {
             objectType = typeof(T);
-            tableName = objectType.Name;
+            TableName = objectType.Name;
             PropertyInfo = GetPropertyInfo();
         }
 
@@ -64,7 +64,7 @@ namespace EasyMySql.Core
                         }
                         catch (TargetInvocationException)
                         {
-                            EasyMySqlLog.Log(this, "Could not get dataobjects from table: " + tableName, logSeverity.Error);
+                            EasyMySqlLog.Log(this, "Could not get dataobjects from table: " + TableName, logSeverity.Error);
 
                         }
                     }
@@ -152,7 +152,7 @@ namespace EasyMySql.Core
                 DataObjectPropertyInfo PrimaryKey = null;
 
                 MySqlCommand Command = new MySqlCommand();
-                Command.CommandText = "CREATE TABLE IF NOT EXISTS " + tableName + " ( ";
+                Command.CommandText = "CREATE TABLE IF NOT EXISTS " + TableName + " ( ";
 
                 foreach (DataObjectPropertyInfo pi in PropertyInfo)
                 {
@@ -171,6 +171,10 @@ namespace EasyMySql.Core
                                 throw new Exception("Instance has 2 primary keys");
                             }
                         }
+                    }
+                    else if (pi.Type.IsEnum)
+                    {
+                        Command.CommandText += " " + pi.Name + " INT NOT NULL ,";
                     }
                     else if (pi.Type == typeof(string))
                     {
@@ -236,7 +240,7 @@ namespace EasyMySql.Core
                         MySqlCommand Command = new MySqlCommand();
                         if (pi.Type == typeof(int))
                         {
-                            Command.CommandText = "ALTER TABLE " + tableName + " ADD COLUMN " + pi.Name + " INT NOT NULL " + (pi.IsPrimaryKey ? " AUTO_INCREMENT" : "");
+                            Command.CommandText = "ALTER TABLE " + TableName + " ADD COLUMN " + pi.Name + " INT NOT NULL " + (pi.IsPrimaryKey ? " AUTO_INCREMENT" : "");
 
                             if (pi.IsPrimaryKey)
                             {
@@ -251,24 +255,29 @@ namespace EasyMySql.Core
                             }
                         }
 
+                        if (pi.Type.IsEnum)
+                        {
+                            Command.CommandText = "ALTER TABLE " + TableName + " ADD COLUMN " + pi.Name + " INT NOT NULL ";
+                        }
+
                         if (pi.Type == typeof(string))
                         {
-                            Command.CommandText = "ALTER TABLE " + tableName + " ADD COLUMN " + pi.Name + " VARCHAR(" + pi.Length + ") NOT NULL ";
+                            Command.CommandText = "ALTER TABLE " + TableName + " ADD COLUMN " + pi.Name + " VARCHAR(" + pi.Length + ") NOT NULL ";
                         }
 
                         if (pi.Type == typeof(bool))
                         {
-                            Command.CommandText = "ALTER TABLE " + tableName + " ADD COLUMN " + pi.Name + " BIT NOT NULL ";
+                            Command.CommandText = "ALTER TABLE " + TableName + " ADD COLUMN " + pi.Name + " BIT NOT NULL ";
                         }
 
                         if (pi.Type == typeof(DateTime))
                         {
-                            Command.CommandText = "ALTER TABLE " + tableName + " ADD COLUMN " + pi.Name + " BIGINT NOT NULL ";
+                            Command.CommandText = "ALTER TABLE " + TableName + " ADD COLUMN " + pi.Name + " BIGINT NOT NULL ";
                         }
 
                         if (pi.Type == typeof(double))
                         {
-                            Command.CommandText = "ALTER TABLE " + tableName + " ADD COLUMN " + pi.Name + " FLOAT NOT NULL ";
+                            Command.CommandText = "ALTER TABLE " + TableName + " ADD COLUMN " + pi.Name + " FLOAT NOT NULL ";
                         }
 
                         DatabaseHandler.ExecuteNonQuery(Command, this.LogDatabaseStats);
@@ -282,7 +291,7 @@ namespace EasyMySql.Core
                                 MySqlCommand Command = new MySqlCommand();
                                 if (pi.Type == typeof(int))
                                 {
-                                    Command.CommandText = "ALTER TABLE " + tableName + " CHANGE COLUMN " + pi.Name + " " + pi.Name + " INT NOT NULL " + (pi.IsPrimaryKey ? " AUTO_INCREMENT" : "");
+                                    Command.CommandText = "ALTER TABLE " + TableName + " CHANGE COLUMN " + pi.Name + " " + pi.Name + " INT NOT NULL " + (pi.IsPrimaryKey ? " AUTO_INCREMENT" : "");
 
                                     if (pi.IsPrimaryKey && PrimaryKey == null)
                                     {
@@ -300,22 +309,27 @@ namespace EasyMySql.Core
 
                                 if (pi.Type == typeof(string))
                                 {
-                                    Command.CommandText = "ALTER TABLE " + tableName + " CHANGE COLUMN " + pi.Name + " " + pi.Name + " VARCHAR(" + pi.Length + ") NOT NULL ";
+                                    Command.CommandText = "ALTER TABLE " + TableName + " CHANGE COLUMN " + pi.Name + " " + pi.Name + " VARCHAR(" + pi.Length + ") NOT NULL ";
+                                }
+
+                                if (pi.Type.IsEnum)
+                                {
+                                    Command.CommandText = "ALTER TABLE " + TableName + " CHANGE COLUMN " + pi.Name + " " + pi.Name + " INT NOT NULL ";
                                 }
 
                                 if (pi.Type == typeof(bool))
                                 {
-                                    Command.CommandText = "ALTER TABLE " + tableName + " CHANGE COLUMN " + pi.Name + " " + pi.Name + " BIT NOT NULL ";
+                                    Command.CommandText = "ALTER TABLE " + TableName + " CHANGE COLUMN " + pi.Name + " " + pi.Name + " BIT NOT NULL ";
                                 }
 
                                 if (pi.Type == typeof(DateTime))
                                 {
-                                    Command.CommandText = "ALTER TABLE " + tableName + " CHANGE COLUMN " + pi.Name + " " + pi.Name + " BIGINT NOT NULL ";
+                                    Command.CommandText = "ALTER TABLE " + TableName + " CHANGE COLUMN " + pi.Name + " " + pi.Name + " BIGINT NOT NULL ";
                                 }
 
                                 if (pi.Type == typeof(double))
                                 {
-                                    Command.CommandText = "ALTER TABLE " + tableName + " CHANGE COLUMN " + pi.Name + " " + pi.Name + " FLOAT NOT NULL ";
+                                    Command.CommandText = "ALTER TABLE " + TableName + " CHANGE COLUMN " + pi.Name + " " + pi.Name + " FLOAT NOT NULL ";
                                 }
 
                                 DatabaseHandler.ExecuteNonQuery(Command, LogDatabaseStats);
@@ -341,7 +355,7 @@ namespace EasyMySql.Core
                     try
                     {
                         MySqlCommand Command = new MySqlCommand();
-                        Command.CommandText = "alter TABLE " + tableName + " ADD PRIMARY KEY (`" + PrimaryKey.Name + "`);";
+                        Command.CommandText = "alter TABLE " + TableName + " ADD PRIMARY KEY (`" + PrimaryKey.Name + "`);";
                         DatabaseHandler.ExecuteNonQuery(Command, LogDatabaseStats);
                     }
                     catch (Exception ex)
@@ -377,12 +391,12 @@ namespace EasyMySql.Core
 
             List<DataObjectPropertyInfo> UniqueColumns = PropertyInfo.Where(p => p.IsUnique).ToList();
 
-            foreach (UniqueKey uKey in UniqueKeyHandler.Instance.GetItems().Where(o => o.TableName == tableName))
+            foreach (UniqueKey uKey in UniqueKeyHandler.Instance.GetItems().Where(o => o.TableName == TableName))
             {
                 if (UniqueColumns.Count(o => o.Name == uKey.ColumnName) == 0)
                 {
                     MySqlCommand Command = new MySqlCommand();
-                    Command.CommandText = string.Format("DROP INDEX {1} ON {0};", tableName, uKey.IndexName);
+                    Command.CommandText = string.Format("DROP INDEX {1} ON {0};", TableName, uKey.IndexName);
 
                     DatabaseHandler.ExecuteNonQuery(Command, LogDatabaseStats);
                     UniqueKeyHandler.Instance.Delete(uKey);
@@ -395,17 +409,17 @@ namespace EasyMySql.Core
                 {
                     foreach (var uColumn in UniqueColumns)
                     {
-                        if (UniqueKeyHandler.Instance.GetItems().Count(o => o.TableName == tableName && o.ColumnName == uColumn.Name) == 0)
+                        if (UniqueKeyHandler.Instance.GetItems().Count(o => o.TableName == TableName && o.ColumnName == uColumn.Name) == 0)
                         {
                             UniqueKey uKey = new UniqueKey()
                             {
-                                TableName = tableName,
+                                TableName = TableName,
                                 ColumnName = uColumn.Name,
                                 IndexName = "u" + uColumn.Name,
                             };
 
                             MySqlCommand Command = new MySqlCommand();
-                            Command.CommandText = string.Format("CREATE UNIQUE INDEX {1} ON {0}({2});", tableName, uKey.IndexName, uKey.ColumnName);
+                            Command.CommandText = string.Format("CREATE UNIQUE INDEX {1} ON {0}({2});", TableName, uKey.IndexName, uKey.ColumnName);
 
                             DatabaseHandler.ExecuteNonQuery(Command, LogDatabaseStats);
 
@@ -458,7 +472,7 @@ namespace EasyMySql.Core
             try
             {
                 MySqlCommand Command = new MySqlCommand();
-                Command.CommandText = "INSERT INTO " + tableName + " ( ";
+                Command.CommandText = "INSERT INTO " + TableName + " ( ";
 
                 foreach (DataObjectPropertyInfo pi in PropertyInfo)
                 {
@@ -546,7 +560,7 @@ namespace EasyMySql.Core
             try
             {
                 MySqlCommand Command = new MySqlCommand();
-                Command.CommandText = "UPDATE " + tableName + " SET ";
+                Command.CommandText = "UPDATE " + TableName + " SET ";
 
                 foreach (DataObjectPropertyInfo pi in PropertyInfo)
                 {
@@ -628,7 +642,7 @@ namespace EasyMySql.Core
                     throw new Exception("ID can not be 0. try adding this object first.");
                 }
 
-                string CommandText = "UPDATE " + tableName + " SET ";
+                string CommandText = "UPDATE " + TableName + " SET ";
 
                 foreach (DataObjectPropertyInfo pi in PropertyInfo)
                 {
@@ -712,7 +726,7 @@ namespace EasyMySql.Core
                 }
 
                 MySqlCommand Command = new MySqlCommand();
-                Command.CommandText = "SELECT * FROM " + tableName + " WHERE ID = @ID";
+                Command.CommandText = "SELECT * FROM " + TableName + " WHERE ID = @ID";
                 Command.Parameters.AddWithValue("@ID", ID);
 
                 T[] ObjectList = GetDataObjects(DatabaseHandler.ExecuteQuery(Command, LogDatabaseStats));
@@ -848,7 +862,7 @@ namespace EasyMySql.Core
 
             try
             {
-                Command.CommandText = "SELECT * FROM " + tableName + " WHERE ";
+                Command.CommandText = "SELECT * FROM " + TableName + " WHERE ";
 
                 foreach (string s in PropertyNames)
                 {
@@ -931,7 +945,7 @@ namespace EasyMySql.Core
 
             try
             {
-                Command.CommandText = "SELECT * FROM " + tableName + " WHERE " + IDPropertyName + " = @" + IDPropertyName;
+                Command.CommandText = "SELECT * FROM " + TableName + " WHERE " + IDPropertyName + " = @" + IDPropertyName;
                 Command.Parameters.AddWithValue("@" + IDPropertyName, ChildID);
 
                 Command.CommandText = addOrderBy(Command.CommandText, orderBy, OrderByPropertyName);
@@ -998,7 +1012,7 @@ namespace EasyMySql.Core
             try
             {
                 MySqlCommand Command = new MySqlCommand();
-                Command.CommandText = "SELECT * FROM " + tableName;
+                Command.CommandText = "SELECT * FROM " + TableName;
 
                 Command.CommandText = addOrderBy(Command.CommandText, orderBy, OrderByPropertyName);
 
@@ -1052,7 +1066,7 @@ namespace EasyMySql.Core
             try
             {
                 MySqlCommand Command = new MySqlCommand();
-                Command.CommandText = "SELECT * FROM " + tableName + " WHERE ";
+                Command.CommandText = "SELECT * FROM " + TableName + " WHERE ";
 
                 for (int i = 0; i < ID.Count(); i++)
                 {
@@ -1130,7 +1144,7 @@ namespace EasyMySql.Core
 
             try
             {
-                Command.CommandText = "SELECT * FROM " + tableName + " WHERE ";
+                Command.CommandText = "SELECT * FROM " + TableName + " WHERE ";
 
                 for (int i = 0; i < ChildIDs.Length; i++)
                 {
@@ -1352,7 +1366,7 @@ namespace EasyMySql.Core
             try
             {
                 MySqlCommand Command = new MySqlCommand();
-                Command.CommandText = "select Count(*) as Count from " + tableName;
+                Command.CommandText = "select Count(*) as Count from " + TableName;
 
                 reader = DatabaseHandler.ExecuteQuery(Command, LogDatabaseStats);
                 int CountFromDatabase = 0;
@@ -1418,7 +1432,7 @@ namespace EasyMySql.Core
             try
             {
                 MySqlCommand Command = new MySqlCommand();
-                Command.CommandText = "SELECT * FROM " + tableName + " WHERE ";
+                Command.CommandText = "SELECT * FROM " + TableName + " WHERE ";
 
                 foreach (Filter f in filters)
                 {
@@ -1469,7 +1483,7 @@ namespace EasyMySql.Core
                 BeforeQuery();
 
                 MySqlCommand Command = new MySqlCommand();
-                Command.CommandText = "DELETE FROM " + tableName + " WHERE ID = @ID";
+                Command.CommandText = "DELETE FROM " + TableName + " WHERE ID = @ID";
                 Command.Parameters.AddWithValue("@ID", ID);
 
                 DatabaseHandler.ExecuteNonQuery(Command, LogDatabaseStats);
@@ -1509,7 +1523,7 @@ namespace EasyMySql.Core
 
                 for (int i = 0; i < ObjectIds.Count(); i++)
                 {
-                    Command.CommandText += string.Format("DELETE FROM " + tableName + " WHERE ID = @ID{0};", i);
+                    Command.CommandText += string.Format("DELETE FROM " + TableName + " WHERE ID = @ID{0};", i);
                     Command.Parameters.AddWithValue("@ID" + i, ObjectIds.ElementAt(i));
                     LogText.AppendLine(objectType.Name.ToString() + " " + ObjectIds.ElementAt(i) + " has been deleted.");
                 }
@@ -1633,6 +1647,11 @@ namespace EasyMySql.Core
         public override string ToString()
         {
             return GetType().Name;
+        }
+
+        public void Dispose()
+        {
+            
         }
     }
 }

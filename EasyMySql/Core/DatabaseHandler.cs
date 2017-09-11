@@ -69,6 +69,11 @@ namespace EasyMySql.Core
         /// <param name="Command">MySQLCommand</param>
         internal static void ExecuteNonQuery(MySqlCommand Command, bool LogStats, int RetryCount = 0)
         {
+            if (string.IsNullOrWhiteSpace(Command.CommandText))
+            {
+                return;
+            }
+
             MySqlConnection Connection = null;
 
             try

@@ -12,7 +12,7 @@ namespace EasyMySql.Core
 
         private UniqueKeyHandler()
         {
-            tableName = Constants.InternalTablePrefix + "UniqueKeys";
+            TableName = Constants.InternalTablePrefix + "UniqueKeys";
         }
     }
 

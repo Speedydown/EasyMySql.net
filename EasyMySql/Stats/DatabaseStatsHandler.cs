@@ -14,7 +14,7 @@ namespace EasyMySql.Stats
         private DatabaseStatsHandler()
             : base()
         {
-            tableName = Constants.InternalTablePrefix + "DatabaseStats";
+            TableName = Constants.InternalTablePrefix + "DatabaseStats";
             LogErrors = false;
         }
 

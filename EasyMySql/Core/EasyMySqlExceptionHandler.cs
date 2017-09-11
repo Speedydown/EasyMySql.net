@@ -13,7 +13,7 @@ namespace EasyMySql.Core
 
         private EasyMySqlExceptionHandler()
         {
-            tableName = Constants.InternalTablePrefix + "EasyMySqlException";
+            TableName = Constants.InternalTablePrefix + "EasyMySqlException";
             LogErrors = false;
             LogDatabaseStats = false;
         }
@@ -25,7 +25,7 @@ namespace EasyMySql.Core
 
         public EasyMySqlException[] getExcptionsByDataHandlerName(string DataHandlerName)
         {
-            return GetItems("SELECT * FROM " + tableName + " WHERE DatahandlerName = @DataHandlerName ORDER BY ID DESC",
+            return GetItems("SELECT * FROM " + TableName + " WHERE DatahandlerName = @DataHandlerName ORDER BY ID DESC",
                 new string[] { "@DataHandlerName"},
                 new object[] { DataHandlerName });
         }
@@ -42,7 +42,7 @@ namespace EasyMySql.Core
 
         public EasyMySqlException[] GetExceptionByHash(string Hash)
         {
-            return GetItems("SELECT * FROM " + tableName + " WHERE ExceptionHash = @ExceptionHash",
+            return GetItems("SELECT * FROM " + TableName + " WHERE ExceptionHash = @ExceptionHash",
                 new string[] { "@ExceptionHash" },
                 new object[] { Hash });
         }
@@ -65,7 +65,7 @@ namespace EasyMySql.Core
 
         public int GetExceptionsCount()
         {
-            return CountItems("SELECT COUNT(*) AS Count FROM " + tableName
+            return CountItems("SELECT COUNT(*) AS Count FROM " + TableName
                 , new string[] { },
                 new object[] { });
         }
