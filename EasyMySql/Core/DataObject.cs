@@ -12,7 +12,7 @@ namespace EasyMySql.Core
     public abstract class DataObject
     {
         [Key]
-        public int ID { get; set; }
+        public virtual int ID { get; set; }
 
         public DataObject()
         {

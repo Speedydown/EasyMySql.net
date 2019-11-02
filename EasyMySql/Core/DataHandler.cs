@@ -29,6 +29,13 @@ namespace EasyMySql.Core
             PropertyInfo = GetPropertyInfo();
         }
 
+        public DataHandler(string tablename)
+        {
+          objectType = typeof(T);
+          TableName = tablename;
+          PropertyInfo = GetPropertyInfo();
+        }
+
         private T[] GetDataObjects(MySqlDataReader Reader)
         {
             List<T> CurrentObjects = new List<T>();
